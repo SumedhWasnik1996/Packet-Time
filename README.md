@@ -133,26 +133,6 @@ npm run build
 
 ---
 
-## Releasing
-
-Releases are triggered automatically by pushing a version tag:
-
-```bash
-# Inside packetTimeApp/
-npm version patch      # 1.0.0 → 1.0.1
-npm version minor      # 1.0.0 → 1.1.0
-npm version major      # 1.0.0 → 2.0.0
-
-# Push the commit + tag — GitHub Actions does the rest
-git push origin main --tags
-```
-
-GitHub Actions will build the `.exe` files and publish them to the Releases page automatically. No manual upload needed.
-
-For a pre-release: `git tag v1.1.0-beta && git push origin v1.1.0-beta`
-
----
-
 ## License
 
 [Apache 2.0](LICENSE) © 2025 Sumedh Wasnik
