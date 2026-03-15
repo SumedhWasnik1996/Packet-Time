@@ -1,7 +1,7 @@
 {
   "name": "packettime-debugger",
   "version": "1.0.0",
-  "description": "Visual network packet time-travel debugger \u2014 learn networking protocol by protocol, frame by frame",
+  "description": "Visual network packet time-travel debugger — learn networking protocol by protocol, frame by frame",
   "main": "main.js",
   "author": {
     "name": "Sumedh Wasnik",
@@ -31,7 +31,7 @@
   "build": {
     "appId": "com.packettime.debugger",
     "productName": "PacketTime Debugger",
-    "copyright": "Copyright \u00a9 2025 Sumedh Wasnik",
+    "copyright": "Copyright © 2025 Sumedh Wasnik",
     "win": {
       "target": [
         {
@@ -77,10 +77,10 @@
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
+    "dotenv": "^16.6.1",
     "electron": "^41.0.2",
     "electron-builder": "^26.8.1",
     "eslint": "^8.57.0",
-    "rimraf": "^5.0.5",
-    "dotenv": "^16.4.5"
+    "rimraf": "^5.0.5"
   }
 }

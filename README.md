@@ -2,13 +2,13 @@
 
 # ⬡ Packet Time Debugger
 
-**A visual, interactive network packet time-travel debugger — built as a Windows desktop app.**
+**A visual, interactive network packet time-travel debugger — Windows desktop app.**
 
 Step through real network events frame by frame. Inspect packet headers, follow the OSI layers, watch data transform at every hop, and replay any moment — just like a code debugger, but for networking.
 
 [![Electron](https://img.shields.io/badge/Electron-28-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows-0078D4?logo=windows&logoColor=white)](https://github.com/SumedhWasnik1996/Packet-Time/releases)
-[![License](https://img.shields.io/github/license/SumedhWasnik1996/Packet-Time)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/SumedhWasnik1996/Packet-Time?include_prereleases)](https://github.com/SumedhWasnik1996/Packet-Time/releases)
 
 </div>
@@ -17,20 +17,18 @@ Step through real network events frame by frame. Inspect packet headers, follow 
 
 ## Download
 
-Go to [**Releases**](https://github.com/SumedhWasnik1996/Packet-Time/releases) and download the latest:
+Go to [**Releases**](https://github.com/SumedhWasnik1996/Packet-Time/releases) and grab the latest:
 
-| File | Type | Use |
-|---|---|---|
-| `PacketTime-Debugger-Setup-x.x.x.exe` | NSIS Installer | Recommended — installs with shortcuts |
-| `PacketTime-Debugger-x.x.x-portable.exe` | Portable | Run without installing |
+| File | Description |
+|---|---|
+| `PacketTime-Debugger-Setup-x.x.x.exe` | NSIS Installer — recommended, adds Start Menu + Desktop shortcuts |
+| `PacketTime-Debugger-x.x.x-portable.exe` | Portable — run directly, no install needed |
 
-> **No Node.js required** to run the installer or portable — everything is bundled.
+> No Node.js required to run — everything is bundled inside the `.exe`.
 
 ---
 
 ## 10 Network Scenarios
-
-Each scenario is a fully annotated, frame-by-frame simulation with packet headers, OSI layer tracking, detailed logs, and a diff view showing exactly what changed between frames.
 
 | # | Scenario | Protocol | Frames |
 |---|---|---|---|
@@ -47,137 +45,114 @@ Each scenario is a fully annotated, frame-by-frame simulation with packet header
 
 ---
 
-## Features
+## Project Structure
 
-- **Time-travel timeline** — drag the slider or click any frame tick to jump instantly to any moment in the simulation
-- **Animated network topology** — packet dot moves between nodes with smooth transitions; traversed edges animate with flowing dashes
-- **4 inspector tabs** — Packet (all headers), Log (per-line cards with explanations), Diff (changed fields highlighted), Path (network hop tracker)
-- **Frame-by-frame diff** — changed packet fields highlighted in amber; new fields in green
-- **Play / Pause / Replay** — auto-play at 5 speed levels (½× to 4×); the progress bar fills smoothly like a video player
-- **Custom dark terminal theme** — frameless window, maximises on launch, custom min/max/close chrome
-- **No frameworks, no bundler** — vanilla JS + Electron, easy to fork and extend
+```
+Packet-Time/                        ← repo root
+├── packetTimeApp/                  ← Electron app
+│   ├── src/
+│   │   ├── index.html              ← entire UI (HTML + CSS + JS)
+│   │   ├── scenarios.js            ← all 10 scenario definitions
+│   │   └── preload.js              ← Electron IPC bridge
+│   ├── main.js                     ← Electron main process
+│   ├── package.json                ← dependencies + build config
+│   ├── package-lock.json
+│   ├── .env.example                ← environment variable template (committed)
+│   └── .env                        ← your local secrets (gitignored)
+├── .github/
+│   └── workflows/
+│       └── build-release.yml       ← CI/CD: auto-build + publish on version tag
+├── .gitignore
+├── LICENSE                         ← Apache 2.0
+└── README.md
+```
 
 ---
 
 ## Development Setup
 
-### Requirements
+### Prerequisites
 
-- [Node.js 18+](https://nodejs.org) (LTS recommended)
-- Windows 10/11 (for building the `.exe`)
+| Tool | Version |
+|---|---|
+| [Node.js](https://nodejs.org) | 18 LTS or 20 LTS |
+| Git | Any recent version |
+| Windows | 10 / 11 (required to build `.exe`) |
 
-### Run in development
+### 1. Clone and install
 
 ```bash
 git clone https://github.com/SumedhWasnik1996/Packet-Time.git
 cd Packet-Time/packetTimeApp
-
-# Install dependencies
 npm install
-
-# Copy env template and configure
-cp .env.example .env
-# Edit .env — set NODE_ENV=development
-
-# Launch
-npm start
 ```
 
-Set `OPEN_DEVTOOLS=true` in `.env` to open Chrome DevTools automatically on launch.
+### 2. Configure environment
 
-### Build distributable
+```bash
+# Copy the template — fill in your own values
+cp .env.example .env
+```
+
+The `.env` file is gitignored and never committed. `.env.example` is committed and shows what variables are available.
+
+### 3. Run in development
+
+```bash
+npm start
+# or explicitly:
+npm run start:dev
+```
+
+### 4. Build distributable
 
 ```bash
 npm run build
+# Output → packetTimeApp/dist/
 ```
 
-Output goes to `dist/`. This produces:
-- `PacketTime-Debugger-Setup-x.x.x.exe` — NSIS installer with Start Menu + Desktop shortcuts
-- `PacketTime-Debugger-x.x.x-portable.exe` — single portable executable
-
-### Build commands
-
-| Command | Description |
-|---|---|
-| `npm start` | Launch (reads `NODE_ENV` from `.env`) |
-| `npm run start:dev` | Force development mode |
-| `npm run start:prod` | Force production mode |
-| `npm run build` | Build installer + portable for Windows x64 |
-| `npm run build:portable` | Build portable `.exe` only |
-| `npm run clean` | Delete `dist/` folder |
-
 ### Environment variables
-
-Copy `.env.example` to `.env` to configure your local setup:
 
 | Variable | Default | Description |
 |---|---|---|
 | `NODE_ENV` | `development` | `development` enables DevTools; `production` disables them |
-| `OPEN_DEVTOOLS` | `false` | Auto-open DevTools on launch (dev only) |
-| `GH_TOKEN` | — | GitHub token for publishing releases locally |
-| `ANTHROPIC_API_KEY` | — | _(Future)_ AI assistant feature |
+| `OPEN_DEVTOOLS` | `false` | Auto-open Chrome DevTools on launch |
+| `GH_TOKEN` | — | GitHub token — only needed for publishing releases locally |
+| `ANTHROPIC_API_KEY` | — | *(Future)* AI assistant feature |
 
-> `.env` is gitignored — never committed. `.env.example` is committed and shows what variables exist.
+### npm scripts
+
+| Command | Description |
+|---|---|
+| `npm start` | Launch app (reads `.env`) |
+| `npm run start:dev` | Force development mode |
+| `npm run start:prod` | Force production mode |
+| `npm run build` | Build installer + portable `.exe` for Windows x64 |
+| `npm run build:portable` | Build portable `.exe` only |
+| `npm run clean` | Delete `dist/` folder |
 
 ---
 
-## Project Structure
+## Releasing
 
+Releases are triggered automatically by pushing a version tag:
+
+```bash
+# Inside packetTimeApp/
+npm version patch      # 1.0.0 → 1.0.1
+npm version minor      # 1.0.0 → 1.1.0
+npm version major      # 1.0.0 → 2.0.0
+
+# Push the commit + tag — GitHub Actions does the rest
+git push origin main --tags
 ```
-packetTimeApp/
-├── main.js            — Electron main process (frameless window, IPC)
-├── package.json       — Dependencies, build config, electron-builder settings
-├── src/
-│   ├── index.html     — Entire app UI (HTML + CSS + JS in one file)
-│   ├── scenarios.js   — All 10 scenario definitions (frames, packets, logs)
-│   └── preload.js     — Electron context bridge (window controls IPC)
-└── dist/              — Built distributables (gitignored)
-```
 
-### Adding a new scenario
+GitHub Actions will build the `.exe` files and publish them to the Releases page automatically. No manual upload needed.
 
-All scenarios live in `src/scenarios.js`. Each scenario follows this structure:
-
-```js
-{
-  id: 'my_scenario',
-  title: 'My Scenario',
-  subtitle: 'Short description',
-  icon: '🔧',
-  color: '#58a6ff',           // accent colour used throughout the UI
-  description: 'Longer description shown in the Path tab.',
-  topology: [                 // nodes shown in the SVG canvas
-    { id: 0, x: 100, y: 180, icon: '💻', label: 'Client', sub: '192.168.1.10' },
-    { id: 1, x: 400, y: 180, icon: '🖥️', label: 'Server', sub: '10.0.0.1' },
-  ],
-  edges: [[0, 1]],            // connections between topology nodes
-  frames: [
-    {
-      id: 0,
-      name: 'Frame Name',
-      device: 'Client',
-      layer: 'Application',
-      osiClass: 'osi-app',    // osi-app | osi-transport | osi-network | osi-link | osi-physical
-      layerClass: 'layer-app',
-      activeHop: 0,           // which topology node is active
-      packet: {               // key-value pairs shown in Packet tab
-        type: 'HTTP',
-        srcIP: '192.168.1.10',
-        dstIP: '10.0.0.1',
-      },
-      log: [                  // each string = one log card in Log tab
-        'First log line.',
-        'Second log line.',
-        '',                   // empty string = visual gap between cards
-        'After the gap.',
-      ]
-    },
-  ]
-}
-```
+For a pre-release: `git tag v1.1.0-beta && git push origin v1.1.0-beta`
 
 ---
 
 ## License
 
-[Apache 2.0](LICENSE) © Sumedh Wasnik
+[Apache 2.0](LICENSE) © 2025 Sumedh Wasnik
