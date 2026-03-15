@@ -5,348 +5,343 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'">
 <title>PacketTime Debugger</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
-
-/* ─── RESET ─── */
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:      #0d1117;
-  --bg2:     #161b22;
-  --bg3:     #1c2330;
-  --bg4:     #21262d;
-  --bg5:     #2d333b;
-  --border:  #30363d;
-  --border2: #3d444d;
-  --text:    #e6edf3;
-  --text2:   #adbac7;
-  --text3:   #768390;
-  --green:   #3fb950;
-  --green2:  #26a641;
-  --blue:    #58a6ff;
-  --blue2:   #1f6feb;
-  --amber:   #e3b341;
-  --amber2:  #d29922;
-  --red:     #f85149;
-  --coral:   #ff7b72;
-  --purple:  #a371f7;
-  --teal:    #2ea043;
-  --mono:    'JetBrains Mono', 'Courier New', monospace;
-  --sans:    -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1c2330;--bg4:#21262d;--bg5:#2d333b;
+  --border:#30363d;--border2:#3d444d;
+  --text:#e6edf3;--text2:#adbac7;--text3:#768390;
+  --green:#3fb950;--green2:#26a641;--blue:#58a6ff;
+  --amber:#e3b341;--red:#f85149;--coral:#ff7b72;--purple:#a371f7;
+  --mono:'JetBrains Mono','Courier New',monospace;
+  --sans:-apple-system,'Segoe UI',system-ui,sans-serif;
+  --progress-dur:0.6s;
 }
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;height:100vh;overflow:hidden;line-height:1.5}
 
-body{
-  background:var(--bg);
-  color:var(--text);
-  font-family:var(--sans);
-  font-size:13px;
-  height:100vh;
-  overflow:hidden;
-  line-height:1.5;
-}
+/* ── SHELL ── */
+.app{display:grid;grid-template-columns:256px 1fr 310px;grid-template-rows:44px 1fr 118px;height:100vh;overflow:hidden}
 
-/* ─── APP SHELL ─── */
-.app{
-  display:grid;
-  grid-template-columns:240px 1fr 300px;
-  grid-template-rows:44px 1fr 110px;
-  height:100vh;
-  overflow:hidden;
-}
-
-/* ─── TITLE BAR ─── */
+/* ── TITLEBAR ── */
 .titlebar{
-  grid-column:1/-1;
-  background:var(--bg2);
-  border-bottom:1px solid var(--border);
-  display:flex;
-  align-items:center;
-  padding:0 16px;
-  gap:12px;
-  -webkit-app-region:drag;
-  user-select:none;
+  grid-column:1/-1;background:var(--bg2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 12px 0 16px;gap:12px;
+  -webkit-app-region:drag;user-select:none;height:44px;flex-shrink:0;
 }
 .titlebar-logo{
-  font-size:14px;
-  font-weight:700;
-  color:var(--green);
-  letter-spacing:1px;
-  font-family:var(--mono);
-  -webkit-app-region:no-drag;
+  font-size:14px;font-weight:700;color:var(--green);letter-spacing:1.5px;
+  font-family:var(--mono);-webkit-app-region:no-drag;
+  display:flex;align-items:center;gap:7px;
 }
-.titlebar-sep{color:var(--text3);font-size:12px}
-.titlebar-scenario{font-size:12px;color:var(--text2);font-family:var(--sans)}
+.titlebar-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 8px var(--green);animation:statusPulse 2.5s ease-in-out infinite;
+}
+@keyframes statusPulse{0%,100%{opacity:1;box-shadow:0 0 8px var(--green)}50%{opacity:.35;box-shadow:0 0 3px var(--green)}}
+.titlebar-sep{color:var(--border2);font-size:16px;margin:0 2px;font-weight:200}
+.titlebar-scenario{font-size:12px;color:var(--text2)}
 .titlebar-spacer{flex:1}
-.titlebar-btns{display:flex;gap:6px;-webkit-app-region:no-drag}
+/* App action buttons — left of window chrome */
+.titlebar-btns{display:flex;gap:6px;-webkit-app-region:no-drag;align-items:center}
 .tb-btn{
-  font-size:10px;font-weight:500;
-  background:var(--bg3);border:1px solid var(--border);
-  color:var(--text2);padding:3px 10px;border-radius:4px;
-  cursor:pointer;transition:all .15s;
-  display:flex;align-items:center;gap:4px;
+  font-size:11px;font-weight:500;background:var(--bg3);border:1px solid var(--border);
+  color:var(--text2);padding:4px 12px;border-radius:5px;cursor:pointer;
+  transition:background .15s,color .15s,border-color .15s;
+  display:flex;align-items:center;gap:5px;white-space:nowrap;
 }
 .tb-btn:hover{background:var(--bg4);color:var(--text);border-color:var(--border2)}
+.tb-btn:active{transform:scale(.97)}
 .tb-btn.primary{background:#0d2e14;border-color:var(--green2);color:var(--green)}
-.tb-btn.primary:hover{background:#122e1a}
-
-/* ─── LEFT SIDEBAR: SCENARIO LIST ─── */
-.sidebar{
-  background:var(--bg2);
-  border-right:1px solid var(--border);
-  overflow-y:auto;
-  display:flex;
-  flex-direction:column;
+.tb-btn.primary:hover{background:#152e1a;box-shadow:0 0 10px rgba(63,185,80,.2)}
+/* Custom window chrome buttons */
+.win-chrome{display:flex;align-items:center;gap:1px;-webkit-app-region:no-drag;margin-left:6px;padding-left:10px;border-left:1px solid var(--border)}
+.win-btn{
+  width:32px;height:32px;border-radius:5px;border:none;background:transparent;
+  color:var(--text3);font-size:13px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s,color .15s;
 }
+.win-btn:hover{background:var(--bg3);color:var(--text2)}
+.win-btn.close:hover{background:#c42b1c;color:#fff}
+
+/* ── SIDEBAR ── */
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
 .sidebar-header{
-  padding:10px 12px 8px;
-  font-size:10px;font-weight:700;
-  color:var(--text3);
-  font-family:var(--mono);
-  text-transform:uppercase;letter-spacing:1.2px;
-  border-bottom:1px solid var(--border);
-  flex-shrink:0;
+  padding:12px 14px 10px;font-size:9px;font-weight:700;color:var(--text3);
+  font-family:var(--mono);text-transform:uppercase;letter-spacing:1.5px;
+  border-bottom:1px solid var(--border);flex-shrink:0;
 }
-.scenario-list{flex:1;padding:4px 0}
+.scenario-list{flex:1;padding:5px 0}
 .scenario-item{
-  display:flex;align-items:center;gap:9px;
-  padding:8px 10px 8px 12px;
-  cursor:pointer;
-  transition:background .1s;
-  border-left:2px solid transparent;
-  min-width:0;
+  display:flex;align-items:center;gap:10px;padding:8px 12px 8px 0;
+  cursor:pointer;border-left:3px solid transparent;min-width:0;
+  transition:background .2s ease,border-color .2s ease;
+  padding-left:11px;
 }
-.scenario-item:hover{background:var(--bg3)}
-.scenario-item.active{
-  background:var(--bg3);
-  border-left-color:var(--green);
+.scenario-item:hover{background:rgba(255,255,255,.04)}
+.scenario-item.active{background:rgba(63,185,80,.07);border-left-color:var(--green)}
+.scenario-icon-wrap{
+  width:36px;height:36px;border-radius:9px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:17px;
+  background:var(--bg3);border:1px solid var(--border);
+  transition:border-color .2s,background .2s,box-shadow .2s;
 }
-.scenario-icon{font-size:15px;flex-shrink:0;line-height:1;width:20px;text-align:center}
+.scenario-item.active .scenario-icon-wrap{
+  border-color:var(--sc-color,var(--green));
+  background:color-mix(in srgb,var(--sc-color,var(--green)) 14%,var(--bg3));
+  box-shadow:0 0 12px color-mix(in srgb,var(--sc-color,var(--green)) 28%,transparent);
+}
 .scenario-text{flex:1;min-width:0;overflow:hidden}
-.scenario-title{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--sans)}
-.scenario-sub{font-size:10px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--sans)}
+.scenario-title{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .2s}
+.scenario-item.active .scenario-title{color:var(--green)}
+.scenario-sub{font-size:10px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .scenario-badge{
-  flex-shrink:0;
-  font-size:9px;font-weight:700;
-  padding:2px 5px;border-radius:3px;
-  background:var(--bg4);color:var(--text3);
-  white-space:nowrap;font-family:var(--mono);
+  flex-shrink:0;font-size:9px;font-weight:700;padding:3px 6px;border-radius:4px;
+  background:var(--bg4);color:var(--text3);font-family:var(--mono);
+  border:1px solid var(--border);transition:all .2s;white-space:nowrap;
 }
-.scenario-item.active .scenario-badge{background:#0d2e14;color:var(--green)}
+.scenario-item.active .scenario-badge{background:rgba(63,185,80,.15);color:var(--green);border-color:rgba(63,185,80,.3)}
 
-/* ─── CENTER: MAIN CANVAS ─── */
-.main{
-  background:var(--bg);
-  display:flex;
-  flex-direction:column;
-  overflow:hidden;
-  position:relative;
+/* ── CENTER VIZ ── */
+.main{background:var(--bg);display:flex;flex-direction:column;overflow:hidden;position:relative}
+.viz-area{flex:1;position:relative;overflow:hidden}
+#net-svg{width:100%;height:100%;display:block}
+
+/* Packet transit animation along edge */
+@keyframes packetMove{
+  0%  {opacity:0;offset-distance:0%}
+  10% {opacity:1}
+  90% {opacity:1}
+  100%{opacity:0;offset-distance:100%}
 }
-.viz-area{
-  flex:1;
-  position:relative;
-  overflow:hidden;
-}
-#net-svg{
-  width:100%;height:100%;
-  display:block;
-  /* Let SVG scale to fill the container, centered */
-  preserveAspectRatio:xMidYMid meet;
+.pkt-transit{
+  position:absolute;pointer-events:none;
+  animation:packetMove .55s cubic-bezier(.4,0,.2,1) forwards;
 }
 
-/* Frame info bar — sits at bottom of viz, NOT floating over nodes */
+/* Frame overlay */
 .frame-overlay{
   position:absolute;bottom:0;left:0;right:0;
-  display:flex;align-items:center;gap:10px;
-  padding:8px 14px;
-  background:linear-gradient(transparent, rgba(13,17,23,0.95));
+  display:flex;align-items:center;gap:12px;padding:10px 16px 13px;
+  background:linear-gradient(transparent,rgba(13,17,23,.97));
   pointer-events:none;
 }
-.frame-label{
-  font-size:9px;font-weight:700;color:var(--text3);
-  text-transform:uppercase;letter-spacing:1.2px;
-  font-family:var(--mono);
+.frame-label{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;font-family:var(--mono)}
+.frame-num{
+  font-size:26px;font-weight:700;color:var(--green);line-height:1;min-width:36px;
+  font-family:var(--mono);transition:color .3s;
 }
-.frame-num{font-size:22px;font-weight:700;color:var(--green);line-height:1;min-width:32px;font-family:var(--mono)}
-.frame-name{font-size:13px;font-weight:600;color:var(--text);font-family:var(--sans)}
-.frame-device{font-size:11px;color:var(--text3);margin-left:4px;font-family:var(--sans)}
-
+.frame-name{font-size:14px;font-weight:600;color:var(--text)}
+.frame-sep{color:var(--border2);font-size:12px}
+.frame-device{font-size:12px;color:var(--text3)}
 .osi-pill{
-  position:absolute;top:10px;right:12px;
-  font-size:10px;font-weight:700;padding:4px 12px;
-  border-radius:12px;text-transform:uppercase;letter-spacing:0.8px;
-  pointer-events:none;font-family:var(--mono);
+  position:absolute;top:12px;right:14px;font-size:10px;font-weight:700;
+  padding:5px 13px;border-radius:20px;text-transform:uppercase;letter-spacing:1px;
+  pointer-events:none;font-family:var(--mono);transition:all .3s ease;
 }
-.osi-app     {background:#0d2e0d;color:var(--green);border:1px solid #1a5e1a}
-.osi-transport{background:#1a0e2e;color:var(--purple);border:1px solid #3a1e5e}
-.osi-network {background:#2e1e00;color:var(--amber);border:1px solid #5e3e00}
-.osi-link    {background:#2e0e0e;color:var(--coral);border:1px solid #5e1e1e}
+.osi-app     {background:#0d2e0d;color:var(--green);border:1px solid rgba(63,185,80,.35)}
+.osi-transport{background:#1a0e2e;color:var(--purple);border:1px solid rgba(163,113,247,.35)}
+.osi-network {background:#2e1e00;color:var(--amber);border:1px solid rgba(227,179,65,.35)}
+.osi-link    {background:#2e0e0e;color:var(--coral);border:1px solid rgba(255,123,114,.35)}
 .osi-physical{background:#1c2330;color:var(--text2);border:1px solid var(--border2)}
 
-/* ─── RIGHT PANEL: INSPECTOR ─── */
-.inspector{
-  background:var(--bg2);
-  border-left:1px solid var(--border);
-  display:flex;
-  flex-direction:column;
-  overflow:hidden;
-}
-.inspector-tabs{
-  display:flex;
-  border-bottom:1px solid var(--border);
-  flex-shrink:0;
-}
+/* ── INSPECTOR ── */
+.inspector{background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.inspector-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
 .itab{
-  flex:1;padding:10px 4px;text-align:center;
-  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;
-  color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;
-  transition:all .15s;font-family:var(--mono);
+  flex:1;padding:12px 4px;text-align:center;font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:1px;color:var(--text3);cursor:pointer;
+  border-bottom:2px solid transparent;transition:color .18s,background .18s,border-color .18s;
+  font-family:var(--mono);
 }
-.itab:hover{color:var(--text2)}
+.itab:hover{color:var(--text2);background:rgba(255,255,255,.02)}
 .itab.active{color:var(--green);border-bottom-color:var(--green)}
-.inspector-body{flex:1;overflow-y:auto;padding:12px}
+.inspector-body{flex:1;overflow-y:auto;padding:14px;scroll-behavior:smooth}
 
-/* Inspector content */
-.igroup{margin-bottom:16px}
+/* Packet fields */
+.igroup{margin-bottom:18px}
 .igroup-title{
-  font-size:9px;font-weight:700;text-transform:uppercase;
-  letter-spacing:1.2px;color:var(--text3);
-  margin-bottom:8px;padding-bottom:6px;
-  border-bottom:1px solid var(--border);
-  display:flex;align-items:center;gap:6px;
+  font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;
+  color:var(--text3);margin-bottom:8px;padding-bottom:7px;
+  border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;
   font-family:var(--mono);
 }
-.irow{
-  display:flex;justify-content:space-between;align-items:baseline;
-  padding:5px 0;border-bottom:1px solid var(--bg3);
-  gap:10px;
-}
+.irow{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--bg3);gap:10px}
 .ikey{font-size:11px;color:var(--text3);flex-shrink:0;font-weight:400;font-family:var(--mono)}
-.ival{
-  font-size:11px;color:var(--text);text-align:right;
-  word-break:break-all;max-width:180px;font-weight:500;
-  font-family:var(--mono);
-}
+.ival{font-size:11px;color:var(--text);text-align:right;word-break:break-all;max-width:185px;font-weight:500;font-family:var(--mono)}
 .ival.changed{color:var(--amber);font-weight:700}
 .ival.new-val{color:var(--green);font-weight:700}
 
-/* Log entries */
-.log-wrap{display:flex;flex-direction:column;gap:2px}
-.log-line{
-  font-size:12px;color:var(--text2);
-  padding:4px 0 4px 10px;
-  border-left:2px solid var(--border);
-  line-height:1.6;
-  font-family:var(--sans);
+/* ── LOG — one card per line ── */
+@keyframes cardSlideIn{
+  from{opacity:0;transform:translateY(6px)}
+  to  {opacity:1;transform:translateY(0)}
 }
-.log-line.highlight{color:var(--text);border-left-color:var(--green)}
-.log-line.empty{border-left-color:transparent;color:var(--text3);height:8px}
+.log-cards{display:flex;flex-direction:column;gap:7px;padding-top:4px}
+.log-card{
+  background:var(--bg3);border:1px solid var(--border);
+  border-left:3px solid var(--lc-color,var(--border2));
+  border-radius:7px;padding:9px 12px;
+  animation:cardSlideIn .22s ease both;
+  transition:background .18s,border-left-color .18s,transform .15s,box-shadow .15s;
+  cursor:default;
+}
+.log-card:hover{
+  background:var(--bg4);
+  box-shadow:0 2px 12px rgba(0,0,0,.35);
+  transform:translateX(3px);
+}
+.log-card.highlight{
+  background:color-mix(in srgb,var(--lc-color,var(--green)) 6%,var(--bg3));
+  border-color:color-mix(in srgb,var(--lc-color,var(--green)) 30%,var(--border));
+  border-left-color:var(--lc-color,var(--green));
+}
+.log-card-text{font-size:12.5px;color:var(--text2);line-height:1.65;font-family:var(--sans)}
+.log-card.highlight .log-card-text{color:var(--text)}
+.log-card-text.sub{color:var(--text3);font-size:11.5px;padding-left:8px;border-left:1px solid var(--border);margin-top:2px}
+/* staggered entrance delays */
+.log-card:nth-child(1){animation-delay:.00s}
+.log-card:nth-child(2){animation-delay:.04s}
+.log-card:nth-child(3){animation-delay:.08s}
+.log-card:nth-child(4){animation-delay:.12s}
+.log-card:nth-child(5){animation-delay:.16s}
+.log-card:nth-child(6){animation-delay:.20s}
+.log-card:nth-child(7){animation-delay:.24s}
+.log-card:nth-child(8){animation-delay:.28s}
+.log-card:nth-child(9){animation-delay:.32s}
+.log-card:nth-child(n+10){animation-delay:.36s}
 
 /* Diff */
-.diff-item{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)}
-.diff-field{font-size:11px;font-weight:700;color:var(--text);margin-bottom:5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:0.5px}
-.diff-old{font-size:11px;color:var(--red);background:#2d0f0f;padding:3px 8px;border-radius:3px;display:inline-block;margin-bottom:3px;font-family:var(--mono)}
-.diff-arrow{font-size:11px;color:var(--text3);margin:2px 0;display:block;font-family:var(--mono)}
-.diff-new{font-size:11px;color:var(--green);background:#0d2e0d;padding:3px 8px;border-radius:3px;display:inline-block;font-family:var(--mono)}
-.no-diff{font-size:12px;color:var(--text3);padding:10px 0;font-family:var(--sans)}
+.diff-item{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.diff-field{font-size:11px;font-weight:700;color:var(--text);margin-bottom:6px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px}
+.diff-old{font-size:11px;color:var(--red);background:#2d0f0f;padding:4px 9px;border-radius:4px;display:inline-block;margin-bottom:4px;font-family:var(--mono);border:1px solid rgba(248,81,73,.2)}
+.diff-arrow{font-size:12px;color:var(--text3);margin:3px 0;display:block;font-family:var(--mono)}
+.diff-new{font-size:11px;color:var(--green);background:#0d2e0d;padding:4px 9px;border-radius:4px;display:inline-block;font-family:var(--mono);border:1px solid rgba(63,185,80,.2)}
+.no-diff{font-size:13px;color:var(--text3);padding:12px 0}
 
-/* Path hop list in inspector */
-.hop-path{display:flex;flex-direction:column;gap:3px}
+/* Path */
+.hop-path{display:flex;flex-direction:column;gap:4px}
 .hop-path-item{
-  display:flex;align-items:center;gap:8px;
-  padding:6px 8px;border-radius:5px;
+  display:flex;align-items:center;gap:10px;padding:8px 10px;
+  border-radius:6px;border:1px solid transparent;
+  transition:all .25s ease;
 }
-.hop-path-item.current{background:var(--bg3);border:1px solid var(--green2);color:var(--green)}
-.hop-path-item.visited{color:var(--text3);border:1px solid transparent}
-.hop-path-item.pending{color:var(--text3);opacity:0.4;border:1px solid transparent}
-.hop-path-label{font-size:12px;font-weight:600;font-family:var(--sans)}
-.hop-path-sub{font-size:10px;opacity:0.65;font-family:var(--mono)}
-.hop-arrow-down{color:var(--text3);font-size:10px;padding-left:14px}
+.hop-path-item.current{background:rgba(63,185,80,.08);border-color:rgba(63,185,80,.3)}
+.hop-path-item.visited{color:var(--text3)}
+.hop-path-item.pending{color:var(--text3);opacity:.35}
+.hop-path-label{font-size:12px;font-weight:600}
+.hop-path-sub{font-size:10px;opacity:.6;font-family:var(--mono);margin-top:1px}
+.hop-arrow-down{color:var(--text3);font-size:11px;padding-left:18px}
 
-/* ─── BOTTOM: TIMELINE ─── */
+/* ── TIMELINE ── */
 .timeline{
-  grid-column:1/-1;
-  background:var(--bg2);
-  border-top:1px solid var(--border);
-  padding:6px 14px 6px;
-  display:flex;flex-direction:column;gap:4px;
-  overflow:hidden;
+  grid-column:1/-1;background:var(--bg2);border-top:1px solid var(--border);
+  padding:8px 16px 10px;display:flex;flex-direction:column;gap:5px;overflow:hidden;
 }
-.tl-top{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.tl-ctrl{display:flex;align-items:center;gap:3px}
 
-.tl-play{
-  width:28px;height:28px;border-radius:50%;
-  border:1px solid var(--green2);background:transparent;
-  color:var(--green);font-size:11px;
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;transition:all .15s;flex-shrink:0;
-}
-.tl-play:hover{background:var(--green2);color:#fff}
-.tl-play.playing{border-color:var(--amber);color:var(--amber)}
-.tl-play.playing:hover{background:#2e1e00}
-
+/* Controls */
+.tl-top{display:flex;align-items:center;gap:8px;flex-shrink:0;min-width:0}
 .tl-step{
-  width:22px;height:22px;border-radius:4px;
-  border:1px solid var(--border);background:var(--bg3);
-  color:var(--text2);font-size:9px;
+  width:28px;height:28px;border-radius:6px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text2);font-size:11px;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;
-  cursor:pointer;transition:all .15s;
+  cursor:pointer;transition:background .15s,color .15s,transform .1s;
 }
-.tl-step:hover{background:var(--bg4);color:var(--text)}
+.tl-step:hover{background:var(--bg4);color:var(--text);border-color:var(--border2)}
+.tl-step:active{transform:scale(.92)}
+.tl-play{
+  height:28px;padding:0 16px;border-radius:14px;
+  border:1px solid var(--green2);background:#0d2e14;
+  color:var(--green);font-size:11px;font-weight:700;font-family:var(--mono);
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  cursor:pointer;transition:all .18s;flex-shrink:0;letter-spacing:.5px;min-width:82px;
+}
+.tl-play:hover{background:#152e1a;border-color:var(--green);box-shadow:0 0 12px rgba(63,185,80,.25)}
+.tl-play:active{transform:scale(.96)}
+.tl-play.playing{background:#2e1e00;border-color:var(--amber);color:var(--amber)}
+.tl-play.playing:hover{background:#3a2200;box-shadow:0 0 12px rgba(227,179,65,.25)}
+.tl-divider{width:1px;height:20px;background:var(--border);margin:0 2px;flex-shrink:0}
+.tl-info{display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden}
+.tl-fn{font-size:15px;font-weight:700;color:var(--blue);min-width:38px;flex-shrink:0;font-family:var(--mono)}
+.tl-fname{font-size:12px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-device{font-size:10px;color:var(--text3);flex-shrink:0}
 
-.tl-divider{width:1px;height:18px;background:var(--border);margin:0 2px}
+/* Speed — self-contained box, never overflows */
+.tl-speed-wrap{
+  display:flex;align-items:center;gap:6px;flex-shrink:0;
+  background:var(--bg3);border:1px solid var(--border);border-radius:6px;
+  padding:4px 10px;max-width:160px;min-width:0;
+}
+.tl-speed-lbl{font-size:12px;color:var(--text2);font-weight:600;font-family:var(--sans);white-space:nowrap;flex-shrink:0}
+.tl-speed{flex:1;min-width:0;max-width:60px}
+.tl-speed-val{font-size:12px;font-weight:700;color:var(--amber);font-family:var(--mono);white-space:nowrap;flex-shrink:0;min-width:28px;text-align:right}
 
-.tl-info{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
-.tl-fn{font-size:14px;font-weight:700;color:var(--blue);min-width:36px;flex-shrink:0;font-family:var(--mono)}
-.tl-fname{font-size:12px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--sans)}
-.tl-device{font-size:10px;color:var(--text3);flex-shrink:0;font-family:var(--sans)}
-.tl-speed-wrap{display:flex;align-items:center;gap:5px;flex-shrink:0}
-.tl-speed-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;white-space:nowrap;font-family:var(--mono)}
-.tl-speed{width:60px;flex-shrink:0}
-.tl-speed-val{font-size:10px;color:var(--amber);min-width:28px;white-space:nowrap;font-family:var(--mono)}
-
-/* Slider */
-.tl-slider-wrap{display:flex;align-items:center;flex-shrink:0}
-.tl-range{
+/* ── PROGRESS BAR — smooth video-style fill ── */
+.tl-progress-wrap{
+  position:relative;height:6px;border-radius:3px;
+  background:var(--bg5);overflow:visible;flex-shrink:0;cursor:pointer;
+}
+/* Smooth fill bar — driven by JS width, transitions like a video bar */
+.tl-progress-fill{
+  position:absolute;left:0;top:0;height:100%;border-radius:3px;
+  background:var(--green);
+  width:0%;
+  transition:width var(--progress-dur) linear;
+  pointer-events:none;
+}
+.tl-progress-fill::after{
+  content:'';position:absolute;right:-5px;top:50%;transform:translateY(-50%);
+  width:12px;height:12px;border-radius:50%;
+  background:var(--blue);border:2px solid var(--bg2);
+  box-shadow:0 0 8px rgba(88,166,255,.6);
+  transition:transform .15s;
+}
+.tl-progress-wrap:hover .tl-progress-fill::after{transform:translateY(-50%) scale(1.3)}
+/* Invisible range input sits on top for interaction */
+.tl-range-overlay{
+  position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:100%;height:20px;opacity:0;cursor:pointer;
   -webkit-appearance:none;appearance:none;
-  width:100%;height:3px;border-radius:2px;outline:none;cursor:pointer;
-  background:linear-gradient(to right, var(--green) 0%, var(--green) var(--pct,0%), var(--bg5) var(--pct,0%), var(--bg5) 100%);
-}
-.tl-range::-webkit-slider-thumb{
-  -webkit-appearance:none;width:12px;height:12px;
-  border-radius:50%;background:var(--blue);cursor:pointer;
-  border:2px solid var(--bg2);
-  box-shadow:0 0 6px rgba(88,166,255,0.5);
 }
 
-/* Ticks — fixed height, never growing */
+/* ── FRAME TICKS — full width, same height as progress bar ── */
 .tl-ticks{
-  display:flex;align-items:stretch;height:14px;gap:2px;flex-shrink:0;
+  display:flex;align-items:stretch;height:6px;gap:2px;flex-shrink:0;
+  border-radius:3px;overflow:hidden;
 }
 .tl-tick{
-  flex:1;min-width:4px;max-width:40px;border-radius:1px;
-  cursor:pointer;transition:opacity .15s;opacity:0.3;
-  height:100%;
+  flex:1;cursor:pointer;opacity:.28;
+  transition:opacity .2s,transform .15s;height:100%;
 }
-.tl-tick:hover{opacity:0.7}
-.tl-tick.past{opacity:0.55}
-.tl-tick.current{opacity:1;outline:1px solid rgba(255,255,255,0.3)}
+.tl-tick:hover{opacity:.8;transform:scaleY(1.8);transform-origin:bottom}
+.tl-tick.past{opacity:.55}
+.tl-tick.current{opacity:1}
 
-/* Scrollbar */
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 
-/* SVG nodes */
+/* SVG transitions */
 .svg-node{cursor:pointer}
-.svg-node circle,.svg-node rect{transition:all .3s}
+.svg-node circle{transition:fill .35s ease,stroke .35s ease,stroke-width .35s ease,filter .35s ease}
+
+/* Animated edge transit line */
+@keyframes dashFlow{to{stroke-dashoffset:-18}}
+.edge-flow{
+  stroke-dasharray:6 4;
+  animation:dashFlow .5s linear infinite;
+}
+/* Packet position transition */
+#pkt{transition:cx .5s cubic-bezier(.4,0,.2,1),cy .5s cubic-bezier(.4,0,.2,1)}
 </style>
 </head>
 <body>
-<div class="app" id="app">
+<div class="app">
 
-<!-- TITLE BAR -->
+<!-- TITLEBAR -->
 <div class="titlebar">
-  <span class="titlebar-logo">⬡ PACKETTIME</span>
+  <span class="titlebar-logo">
+    <span class="titlebar-dot"></span>PACKETTIME
+  </span>
   <span class="titlebar-sep">/</span>
   <span class="titlebar-scenario" id="tb-scenario">ARP Process</span>
   <div class="titlebar-spacer"></div>
@@ -354,6 +349,11 @@ body{
     <button class="tb-btn" onclick="replayFrom()">↺ Replay</button>
     <button class="tb-btn" onclick="resetSim()">⟨ Reset</button>
     <button class="tb-btn primary" onclick="togglePlay()" id="tb-play">▶ Play</button>
+  </div>
+  <div class="win-chrome">
+    <button class="win-btn" onclick="window.electronAPI?.minimize()" title="Minimise">&#x2013;</button>
+    <button class="win-btn" onclick="window.electronAPI?.maximize()" title="Maximise">&#x25A1;</button>
+    <button class="win-btn close" onclick="window.electronAPI?.close()" title="Close">&#x2715;</button>
   </div>
 </div>
 
@@ -371,6 +371,7 @@ body{
       <div class="frame-label">Frame</div>
       <div class="frame-num" id="fo-num">0</div>
       <div class="frame-name" id="fo-name">—</div>
+      <span class="frame-sep">·</span>
       <div class="frame-device" id="fo-device">—</div>
     </div>
     <div class="osi-pill osi-app" id="osi-pill">Application</div>
@@ -381,9 +382,9 @@ body{
 <div class="inspector">
   <div class="inspector-tabs">
     <div class="itab active" id="itab-packet" onclick="setTab('packet')">Packet</div>
-    <div class="itab" id="itab-log"    onclick="setTab('log')">Log</div>
-    <div class="itab" id="itab-diff"   onclick="setTab('diff')">Diff</div>
-    <div class="itab" id="itab-path"   onclick="setTab('path')">Path</div>
+    <div class="itab" id="itab-log" onclick="setTab('log')">Log</div>
+    <div class="itab" id="itab-diff" onclick="setTab('diff')">Diff</div>
+    <div class="itab" id="itab-path" onclick="setTab('path')">Path</div>
   </div>
   <div class="inspector-body" id="inspector-body"></div>
 </div>
@@ -391,30 +392,34 @@ body{
 <!-- TIMELINE -->
 <div class="timeline">
   <div class="tl-top">
-    <div class="tl-ctrl">
-      <button class="tl-step" onclick="step(-1)">◀</button>
-      <button class="tl-play" id="tl-play" onclick="togglePlay()">▶</button>
-      <button class="tl-step" onclick="step(1)">▶</button>
-    </div>
+    <button class="tl-step" onclick="step(-1)" title="Previous">&#9664;</button>
+    <button class="tl-play" id="tl-play" onclick="togglePlay()">&#9654; Play</button>
+    <button class="tl-step" onclick="step(1)" title="Next">&#9654;</button>
     <div class="tl-divider"></div>
     <div class="tl-info">
       <span class="tl-fn" id="tl-fn">F0</span>
-      <div>
+      <div style="min-width:0;overflow:hidden">
         <div class="tl-fname" id="tl-fname">—</div>
         <div class="tl-device" id="tl-device">—</div>
       </div>
     </div>
     <div class="tl-speed-wrap">
       <span class="tl-speed-lbl">Speed</span>
-      <input type="range" class="tl-speed tl-range" min="1" max="5" value="2" step="1"
-        oninput="setSpeed(this.value)" style="--pct:25%;background:linear-gradient(to right,var(--amber) 0%,var(--amber) 25%,var(--bg5) 25%,var(--bg5) 100%)">
+      <input type="range" class="tl-speed tl-range-overlay" id="speed-range"
+        min="1" max="5" value="2" step="1" oninput="setSpeed(this.value)"
+        style="position:static;opacity:1;height:4px;-webkit-appearance:none;appearance:none;border-radius:2px;outline:none;cursor:pointer;background:linear-gradient(to right,var(--amber) 25%,var(--bg5) 25%)">
       <span class="tl-speed-val" id="speed-val">1×</span>
     </div>
   </div>
-  <div class="tl-slider-wrap">
-    <input type="range" class="tl-range" id="tl-range" min="0" max="6" value="0" step="1"
-      oninput="onRange(this)" style="--pct:0%">
+
+  <!-- PROGRESS BAR -->
+  <div class="tl-progress-wrap" id="progress-wrap" onclick="onProgressClick(event)">
+    <div class="tl-progress-fill" id="progress-fill"></div>
+    <input type="range" class="tl-range-overlay" id="tl-range"
+      min="0" max="6" value="0" step="1" oninput="onRange(this)">
   </div>
+
+  <!-- FRAME TICKS -->
   <div class="tl-ticks" id="tl-ticks"></div>
 </div>
 
@@ -422,23 +427,20 @@ body{
 
 <script src="scenarios.js"></script>
 <script>
-// ─────────────────────────────────────────────
-// STATE
-// ─────────────────────────────────────────────
+// ── STATE ──
 let activeScenarioIdx = 0;
 let activeFrameIdx    = 0;
 let activeTab         = 'packet';
 let playTimer         = null;
 let isPlaying         = false;
-let playSpeed         = 1; // multiplier
+let playSpeed         = 2;
 const SPEEDS          = [3000, 2000, 1400, 900, 400];
+let prevHop           = 0;
 
 function scenario(){ return SCENARIOS[activeScenarioIdx]; }
-function frame(){    return scenario().frames[activeFrameIdx]; }
+function frame()   { return scenario().frames[activeFrameIdx]; }
 
-// ─────────────────────────────────────────────
-// BOOT
-// ─────────────────────────────────────────────
+// ── BOOT ──
 function boot(){
   buildSidebar();
   loadScenario(0);
@@ -446,180 +448,209 @@ function boot(){
 
 function buildSidebar(){
   const el = document.getElementById('scenario-list');
-  el.innerHTML = SCENARIOS.map((s,i)=>`
-    <div class="scenario-item ${i===0?'active':''}" id="si-${i}" onclick="loadScenario(${i})">
-      <span class="scenario-icon">${s.icon}</span>
+  el.innerHTML = SCENARIOS.map((s,i) => `
+    <div class="scenario-item ${i===0?'active':''}" id="si-${i}"
+         onclick="loadScenario(${i})" style="--sc-color:${s.color}">
+      <div class="scenario-icon-wrap">${s.icon}</div>
       <div class="scenario-text">
         <div class="scenario-title">${s.title}</div>
         <div class="scenario-sub">${s.subtitle}</div>
       </div>
       <span class="scenario-badge">${s.frames.length}F</span>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
 function loadScenario(idx){
   stopPlay();
   activeScenarioIdx = idx;
   activeFrameIdx    = 0;
-  // update sidebar active
-  document.querySelectorAll('.scenario-item').forEach((el,i)=>
+  prevHop           = 0;
+  document.querySelectorAll('.scenario-item').forEach((el,i) =>
     el.classList.toggle('active', i===idx));
-  // update titlebar
   document.getElementById('tb-scenario').textContent = scenario().title;
-  // rebuild timeline range
   const r = document.getElementById('tl-range');
   r.max   = scenario().frames.length - 1;
   r.value = 0;
-  r.style.setProperty('--pct','0%');
+  updateProgressBar(0);
   buildTicks();
   buildSVG();
-  goToFrame(0);
+  goToFrame(0, true);
 }
 
-// ─────────────────────────────────────────────
-// SVG NETWORK TOPOLOGY
-// ─────────────────────────────────────────────
-const SVG_W = 620, SVG_H = 320;
+// ── PROGRESS BAR ──
+function updateProgressBar(idx, instant){
+  const total = scenario().frames.length - 1;
+  const pct   = total > 0 ? (idx / total * 100) : 0;
+  const fill  = document.getElementById('progress-fill');
+  if(instant){
+    fill.style.transition = 'none';
+    fill.style.width = pct + '%';
+    requestAnimationFrame(() => fill.style.transition = '');
+  } else {
+    fill.style.width = pct + '%';
+  }
+  const r = document.getElementById('tl-range');
+  r.value = idx;
+}
 
+function onProgressClick(e){
+  const wrap = document.getElementById('progress-wrap');
+  const rect  = wrap.getBoundingClientRect();
+  const pct   = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const idx   = Math.round(pct * (scenario().frames.length - 1));
+  goToFrame(idx);
+}
+
+function onRange(el){
+  goToFrame(parseInt(el.value));
+}
+
+// ── SVG ──
 function buildSVG(){
-  const svg = document.getElementById('net-svg');
-  const topo = scenario().topology;
+  const svg   = document.getElementById('net-svg');
+  const topo  = scenario().topology;
   const edges = scenario().edges;
-  const sc = scenario();
+  const sc    = scenario();
 
-  // Compute bounding box of all nodes to auto-fit viewBox
-  const xs = topo.map(n=>n.x), ys = topo.map(n=>n.y);
-  const minX = Math.min(...xs)-60, maxX = Math.max(...xs)+60;
-  const minY = Math.min(...ys)-60, maxY = Math.max(...ys)+60;
-  const vw = Math.max(maxX-minX, 300);
-  const vh = Math.max(maxY-minY, 200);
-
+  const xs  = topo.map(n=>n.x), ys = topo.map(n=>n.y);
+  const pad = 72;
+  const minX = Math.min(...xs)-pad, maxX = Math.max(...xs)+pad;
+  const minY = Math.min(...ys)-pad, maxY = Math.max(...ys)+pad;
+  const vw   = Math.max(maxX-minX, 320);
+  const vh   = Math.max(maxY-minY, 220);
   svg.setAttribute('viewBox', `${minX} ${minY} ${vw} ${vh}`);
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
-  let html = `<defs>
-    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-      <path d="M2 2L8 5L2 8" fill="none" stroke="#3d444d" stroke-width="1.5" stroke-linecap="round"/>
-    </marker>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="4" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="glow2">
-      <feGaussianBlur stdDeviation="6" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
+  let h = `<defs>
+    <filter id="glow"><feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="glow2"><feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
   </defs>`;
 
-  // edges
-  edges.forEach(([a,b])=>{
+  // Static dim edges
+  edges.forEach(([a,b]) => {
     const na=topo[a], nb=topo[b];
-    html += `<line id="edge-${a}-${b}" x1="${na.x}" y1="${na.y}" x2="${nb.x}" y2="${nb.y}"
-      stroke="#21262d" stroke-width="1.5" stroke-dasharray="6 4"/>`;
+    h += `<line id="edge-${a}-${b}" x1="${na.x}" y1="${na.y}" x2="${nb.x}" y2="${nb.y}"
+            stroke="#21262d" stroke-width="1.5" stroke-dasharray="6 4"/>`;
   });
 
-  // active edge highlight
-  html += `<line id="active-edge" x1="0" y1="0" x2="0" y2="0"
-    stroke="${sc.color}" stroke-width="2.5" opacity="0" filter="url(#glow)"/>`;
+  // Animated active edge overlay (starts hidden)
+  edges.forEach(([a,b]) => {
+    const na=topo[a], nb=topo[b];
+    h += `<line id="flow-${a}-${b}" x1="${na.x}" y1="${na.y}" x2="${nb.x}" y2="${nb.y}"
+            stroke="${sc.color}" stroke-width="2.5" stroke-dasharray="6 4"
+            stroke-linecap="round" opacity="0"
+            class="edge-flow" style="--flow-color:${sc.color}"/>`;
+  });
 
-  // packet dot
+  // Active edge highlight (solid glow)
+  h += `<line id="active-edge" x1="0" y1="0" x2="0" y2="0"
+          stroke="${sc.color}" stroke-width="2.5" opacity="0" filter="url(#glow)"/>`;
+
+  // Packet dot — CSS transition moves it smoothly
   const n0 = topo[0];
-  html += `<circle id="pkt" cx="${n0.x}" cy="${n0.y}" r="8" fill="${sc.color}"
-    filter="url(#glow2)" opacity="1"/>`;
+  h += `<circle id="pkt" cx="${n0.x}" cy="${n0.y}" r="9"
+          fill="${sc.color}" filter="url(#glow2)" opacity="1"/>`;
 
-  // nodes — radius 32 for better visibility
-  topo.forEach(n=>{
-    html += `
-    <g class="svg-node" id="svgn-${n.id}" onclick="jumpToHop(${n.id})">
-      <circle cx="${n.x}" cy="${n.y}" r="32" fill="#1c2330" stroke="#30363d" stroke-width="1.5" id="nc-${n.id}"/>
+  // Nodes
+  topo.forEach(n => {
+    h += `<g class="svg-node" id="svgn-${n.id}" onclick="jumpToHop(${n.id})">
+      <circle cx="${n.x}" cy="${n.y}" r="34" fill="#1c2330" stroke="#30363d"
+              stroke-width="1.5" id="nc-${n.id}"/>
       <text x="${n.x}" y="${n.y+1}" text-anchor="middle" dominant-baseline="central"
-        font-size="20" style="pointer-events:none">${n.icon}</text>
-      <text x="${n.x}" y="${n.y+42}" text-anchor="middle"
-        font-size="10" fill="#8b949e" font-family="JetBrains Mono,monospace"
-        font-weight="600" style="pointer-events:none">${n.label}</text>
-      <text x="${n.x}" y="${n.y+54}" text-anchor="middle"
-        font-size="8" fill="#545d68" font-family="JetBrains Mono,monospace"
-        style="pointer-events:none" id="nsub-${n.id}">${n.sub}</text>
+            font-size="22" style="pointer-events:none">${n.icon}</text>
+      <text x="${n.x}" y="${n.y+46}" text-anchor="middle" font-size="11"
+            fill="#adbac7" font-family="'Segoe UI',system-ui,sans-serif"
+            font-weight="600" style="pointer-events:none">${n.label}</text>
+      <text x="${n.x}" y="${n.y+59}" text-anchor="middle" font-size="9"
+            fill="#545d68" font-family="'JetBrains Mono','Courier New',monospace"
+            style="pointer-events:none">${n.sub}</text>
     </g>`;
   });
 
-  svg.innerHTML = html;
+  svg.innerHTML = h;
 }
 
-function updateSVG(){
-  const sc    = scenario();
-  const topo  = sc.topology;
-  const fr    = frame();
-  const hop   = fr.activeHop;
+function updateSVG(fromHop, toHop){
+  const sc   = scenario();
+  const topo = sc.topology;
 
-  // node styles
-  topo.forEach((_,i)=>{
+  // Animate all nodes
+  topo.forEach((_,i) => {
     const c = document.getElementById(`nc-${i}`);
     if(!c) return;
-    if(i === hop){
+    if(i === toHop){
       c.setAttribute('fill','#0d2e1a');
       c.setAttribute('stroke', sc.color);
       c.setAttribute('stroke-width','2.5');
       c.setAttribute('filter','url(#glow)');
-    } else if(i < hop){
+    } else if(i < toHop){
       c.setAttribute('fill','#0d1e0d');
       c.setAttribute('stroke','#238636');
-      c.setAttribute('stroke-width','1');
+      c.setAttribute('stroke-width','1.2');
       c.removeAttribute('filter');
     } else {
       c.setAttribute('fill','#1c2330');
       c.setAttribute('stroke','#30363d');
-      c.setAttribute('stroke-width','1');
+      c.setAttribute('stroke-width','1.5');
       c.removeAttribute('filter');
     }
   });
 
-  // move packet dot
+  // Move packet dot (CSS transition handles smooth movement)
   const pkt = document.getElementById('pkt');
   if(pkt){
-    const n = topo[Math.min(hop, topo.length-1)];
+    const n = topo[Math.min(toHop, topo.length-1)];
     pkt.setAttribute('cx', n.x);
     pkt.setAttribute('cy', n.y);
     pkt.setAttribute('fill', sc.color);
   }
 
-  // active edge
+  // Update active glow edge
   const ae = document.getElementById('active-edge');
-  if(ae && hop > 0 && hop < topo.length){
-    const a = topo[hop-1], b = topo[hop];
+  if(ae && toHop > 0 && toHop < topo.length){
+    const a=topo[toHop-1], b=topo[toHop];
     ae.setAttribute('x1',a.x); ae.setAttribute('y1',a.y);
     ae.setAttribute('x2',b.x); ae.setAttribute('y2',b.y);
-    ae.setAttribute('opacity','0.6');
+    ae.setAttribute('opacity','0.5');
     ae.setAttribute('stroke', sc.color);
-  } else if(ae){
-    ae.setAttribute('opacity','0');
-  }
+  } else if(ae) ae.setAttribute('opacity','0');
+
+  // Animated flowing dashes: show only edges that have been traversed up to toHop
+  const edges = sc.edges;
+  edges.forEach(([a,b]) => {
+    const fl = document.getElementById(`flow-${a}-${b}`);
+    if(!fl) return;
+    // An edge is "active" if both endpoints are at or before current hop
+    const isTraversed = a < toHop && b <= toHop || b < toHop && a <= toHop;
+    const isCurrent   = (a === toHop-1 && b === toHop) || (b === toHop-1 && a === toHop);
+    fl.setAttribute('opacity', isCurrent ? '0.85' : isTraversed ? '0.3' : '0');
+    fl.setAttribute('stroke', sc.color);
+  });
 }
 
-// ─────────────────────────────────────────────
-// FRAME NAVIGATION
-// ─────────────────────────────────────────────
-function goToFrame(idx){
-  const sc   = scenario();
-  idx = Math.max(0, Math.min(sc.frames.length-1, idx));
+// ── FRAME NAV ──
+function goToFrame(idx, instant){
+  const sc    = scenario();
+  idx         = Math.max(0, Math.min(sc.frames.length-1, idx));
+  const fr    = sc.frames[idx];
+  const total = sc.frames.length - 1;
+  const from  = activeFrameIdx;
+  prevHop     = sc.frames[from]?.activeHop ?? 0;
   activeFrameIdx = idx;
-  const fr   = sc.frames[idx];
 
-  // range slider
-  const r = document.getElementById('tl-range');
-  r.value = idx;
-  r.style.setProperty('--pct', (idx/(sc.frames.length-1)*100)+'%');
+  // Progress bar
+  updateProgressBar(idx, instant);
 
-  // ticks
-  document.querySelectorAll('.tl-tick').forEach((t,i)=>{
-    t.classList.remove('past','current');
-    if(i < idx) t.classList.add('past');
-    if(i === idx) t.classList.add('current');
-    t.style.opacity = i===idx?'1': i<idx?'0.6':'0.3';
+  // Ticks
+  document.querySelectorAll('.tl-tick').forEach((t,i) => {
+    t.classList.toggle('past',    i < idx);
+    t.classList.toggle('current', i === idx);
+    t.style.opacity = i===idx ? '1' : i<idx ? '0.55' : '0.28';
   });
 
-  // overlays
+  // Labels
   document.getElementById('fo-num').textContent    = idx;
   document.getElementById('fo-name').textContent   = fr.name;
   document.getElementById('fo-device').textContent = fr.device;
@@ -627,86 +658,70 @@ function goToFrame(idx){
   document.getElementById('tl-fname').textContent  = fr.name;
   document.getElementById('tl-device').textContent = fr.device;
 
+  // OSI pill
   const pill = document.getElementById('osi-pill');
-  pill.textContent  = fr.layer;
-  pill.className    = 'osi-pill '+fr.osiClass;
+  pill.textContent = fr.layer;
+  pill.className   = 'osi-pill ' + fr.osiClass;
 
-  updateSVG();
+  // SVG — animate hop transition
+  updateSVG(prevHop, fr.activeHop);
+
   renderInspector();
 }
 
-function step(dir){
-  goToFrame(activeFrameIdx + dir);
+function step(dir){ goToFrame(activeFrameIdx + dir); }
+
+function jumpToHop(id){
+  const idx = scenario().frames.findIndex(f => f.activeHop === id);
+  if(idx >= 0) goToFrame(idx);
 }
 
-function onRange(el){
-  el.style.setProperty('--pct',(parseInt(el.value)/(scenario().frames.length-1)*100)+'%');
-  goToFrame(parseInt(el.value));
-}
-
-function jumpToHop(hopId){
-  const sc = scenario();
-  const idx = sc.frames.findIndex(f=>f.activeHop===hopId);
-  if(idx>=0) goToFrame(idx);
-}
-
-// ─────────────────────────────────────────────
-// PLAY / PAUSE
-// ─────────────────────────────────────────────
-function togglePlay(){
-  if(isPlaying) stopPlay(); else startPlay();
-}
+// ── PLAY ──
+function togglePlay(){ isPlaying ? stopPlay() : startPlay(); }
 
 function startPlay(){
   isPlaying = true;
-  document.getElementById('tl-play').textContent = '⏸';
+  document.getElementById('tl-play').innerHTML = '&#9646;&#9646; Pause';
   document.getElementById('tl-play').classList.add('playing');
   document.getElementById('tb-play').textContent = '⏸ Pause';
+  // Sync progress bar duration to playback speed
+  document.documentElement.style.setProperty('--progress-dur', (SPEEDS[playSpeed-1]*0.85)+'ms');
   tick();
 }
 
 function tick(){
-  const delay = SPEEDS[playSpeed-1];
-  playTimer = setTimeout(()=>{
-    if(activeFrameIdx >= scenario().frames.length-1){
-      stopPlay(); return;
-    }
-    goToFrame(activeFrameIdx+1);
+  playTimer = setTimeout(() => {
+    if(activeFrameIdx >= scenario().frames.length-1){ stopPlay(); return; }
+    goToFrame(activeFrameIdx + 1);
     if(isPlaying) tick();
-  }, delay);
+  }, SPEEDS[playSpeed-1]);
 }
 
 function stopPlay(){
   isPlaying = false;
   clearTimeout(playTimer);
-  document.getElementById('tl-play').textContent = '▶';
+  document.getElementById('tl-play').innerHTML = '&#9654; Play';
   document.getElementById('tl-play').classList.remove('playing');
   document.getElementById('tb-play').textContent = '▶ Play';
+  document.documentElement.style.setProperty('--progress-dur', '0.55s');
 }
 
-function replayFrom(){
-  stopPlay();
-  setTimeout(startPlay, 100);
-}
-
-function resetSim(){
-  stopPlay();
-  goToFrame(0);
-}
+function replayFrom(){ stopPlay(); setTimeout(startPlay, 80); }
+function resetSim()  { stopPlay(); goToFrame(0); }
 
 function setSpeed(v){
   playSpeed = parseInt(v);
   const labels = ['½×','1×','1.5×','2×','4×'];
   document.getElementById('speed-val').textContent = labels[playSpeed-1];
   const pct = ((playSpeed-1)/4*100)+'%';
-  const el = document.querySelector('.tl-speed');
-  el.style.setProperty('--pct', pct);
+  const el  = document.getElementById('speed-range');
   el.style.background = `linear-gradient(to right,var(--amber) 0%,var(--amber) ${pct},var(--bg5) ${pct},var(--bg5) 100%)`;
+  if(isPlaying){
+    document.documentElement.style.setProperty('--progress-dur', (SPEEDS[playSpeed-1]*0.85)+'ms');
+  }
 }
 
-// ─────────────────────────────────────────────
-// TICKS
-// ─────────────────────────────────────────────
+// ── TICKS ──
 function buildTicks(){
   const sc  = scenario();
   const el  = document.getElementById('tl-ticks');
@@ -714,70 +729,41 @@ function buildTicks(){
     'osi-app':'#3fb950','osi-transport':'#a371f7',
     'osi-network':'#e3b341','osi-link':'#ff7b72','osi-physical':'#8b949e'
   };
-  el.innerHTML = sc.frames.map((f,i)=>`
-    <div class="tl-tick" title="F${i}: ${f.name}"
-      style="background:${colors[f.osiClass]||'#545d68'}"
-      onclick="goToFrame(${i})"></div>
-  `).join('');
+  el.innerHTML = sc.frames.map((f,i) =>
+    `<div class="tl-tick" title="F${i}: ${f.name}"
+       style="background:${colors[f.osiClass]||'#545d68'}"
+       onclick="goToFrame(${i})"></div>`
+  ).join('');
 }
 
-// ─────────────────────────────────────────────
-// INSPECTOR TABS
-// ─────────────────────────────────────────────
+// ── INSPECTOR ──
 function setTab(t){
   activeTab = t;
-  ['packet','log','diff','path'].forEach(x=>{
-    document.getElementById('itab-'+x).classList.toggle('active', x===t);
-  });
+  ['packet','log','diff','path'].forEach(x =>
+    document.getElementById('itab-'+x).classList.toggle('active', x===t));
   renderInspector();
 }
 
 function renderInspector(){
   const body = document.getElementById('inspector-body');
+  body.scrollTop = 0;
   if(activeTab==='packet') body.innerHTML = renderPacket();
   else if(activeTab==='log') body.innerHTML = renderLog();
   else if(activeTab==='diff') body.innerHTML = renderDiff();
   else if(activeTab==='path') body.innerHTML = renderPath();
 }
 
-// ── PACKET TAB ──
 function renderPacket(){
-  const fr = frame();
-  const sc = scenario();
-  const p  = fr.packet || {};
-
-  const changed = (key)=>{
-    if(activeFrameIdx===0) return false;
-    const prev = scenario().frames[activeFrameIdx-1].packet||{};
-    return JSON.stringify(prev[key]) !== JSON.stringify(p[key]);
-  };
-
-  const fv = (label, key) => {
-    const val = p[key];
+  const fr=frame(), sc=scenario(), p=fr.packet||{};
+  const chk = k => activeFrameIdx && JSON.stringify(scenario().frames[activeFrameIdx-1].packet?.[k])!==JSON.stringify(p[k]);
+  const nw  = k => activeFrameIdx && !(k in (scenario().frames[activeFrameIdx-1].packet||{}));
+  const fv  = (lbl,key) => {
+    const val=p[key];
     if(val===undefined||val===null) return '';
-    const cls = changed(key)?'changed':
-                (activeFrameIdx>0 && !(key in (scenario().frames[activeFrameIdx-1].packet||{})))?'new-val':'';
-    return `<div class="irow">
-      <span class="ikey">${label}</span>
-      <span class="ival ${cls}">${esc(String(val))}</span>
-    </div>`;
+    const cls = chk(key)?'changed':nw(key)?'new-val':'';
+    return `<div class="irow"><span class="ikey">${lbl}</span><span class="ival ${cls}">${esc(String(val))}</span></div>`;
   };
-
-  let h = `<div class="igroup">
-    <div class="igroup-title">
-      <span style="color:${sc.color}">${fr.device}</span>
-      &nbsp;·&nbsp;
-      <span class="osi-pill ${fr.osiClass}" style="position:static;font-size:8px">${fr.layer}</span>
-    </div>`;
-
-  // frame title
-  h += `<div class="irow">
-    <span class="ikey">frame</span>
-    <span class="ival">F${activeFrameIdx} — ${esc(fr.name)}</span>
-  </div>`;
-
-  // dynamic fields
-  const fieldMap = [
+  const FM=[
     ['type','type'],['subtype','subtype'],['proto','proto'],
     ['src_ip','srcIP'],['dst_ip','dstIP'],['ttl','ttl'],
     ['src_mac','srcMAC'],['dst_mac','dstMAC'],
@@ -798,127 +784,90 @@ function renderPacket(){
     ['icmp_type','icmpType'],['identifier','identifier'],
     ['rtt','roundTrip'],['bgp_ver','bgpVersion'],
     ['as_path','asPath'],['nlri','nlri'],
-    ['comparison','type'],
   ];
-
-  const shown = new Set(['type']);
-  fieldMap.forEach(([lbl,key])=>{
-    if(shown.has(key)||p[key]===undefined) return;
-    shown.add(key);
-    h += fv(lbl, key);
-  });
-
-  // remaining fields not in map
-  Object.keys(p).forEach(k=>{
-    if(shown.has(k)) return;
-    const lbl = k.replace(/([A-Z])/g,' $1').toLowerCase().trim();
-    h += fv(lbl, k);
-  });
-
-  h += '</div>';
-  return h;
-}
-
-// ── LOG TAB ──
-function renderLog(){
-  const fr = frame();
-  const sc = scenario();
   let h = `<div class="igroup">
-    <div class="igroup-title" style="color:${sc.color}">
-      Frame ${activeFrameIdx} — ${esc(fr.name)}
+    <div class="igroup-title">
+      <span style="color:${sc.color}">${fr.device}</span>&nbsp;·&nbsp;
+      <span class="osi-pill ${fr.osiClass}" style="position:static;font-size:8px;padding:2px 8px">${fr.layer}</span>
     </div>
-    <div class="log-wrap">`;
-
-  fr.log.forEach((line,i)=>{
-    if(line===''){
-      h += `<div class="log-line empty">&nbsp;</div>`;
-    } else {
-      const isHL = line.startsWith('  ') || line.includes('→') || line.includes('✓') || line.includes('COMPLETE') || line.includes('ESTABLISHED');
-      h += `<div class="log-line ${isHL?'highlight':''}">${esc(line)}</div>`;
-    }
-  });
-
-  h += `</div></div>`;
-  return h;
+    <div class="irow"><span class="ikey">frame</span><span class="ival">F${activeFrameIdx} — ${esc(fr.name)}</span></div>`;
+  const shown = new Set(['type']);
+  FM.forEach(([l,k])=>{ if(shown.has(k)||p[k]===undefined)return; shown.add(k); h+=fv(l,k); });
+  Object.keys(p).forEach(k=>{ if(shown.has(k))return; h+=fv(k.replace(/([A-Z])/g,' $1').toLowerCase().trim(),k); });
+  return h + '</div>';
 }
 
-// ── DIFF TAB ──
-function renderDiff(){
-  if(activeFrameIdx===0){
-    return `<div class="no-diff">No previous frame to compare. Navigate to Frame 1+.</div>`;
-  }
-  const prev = scenario().frames[activeFrameIdx-1].packet||{};
-  const curr = frame().packet||{};
-  const allKeys = new Set([...Object.keys(prev),...Object.keys(curr)]);
-  const diffs = [];
-  allKeys.forEach(k=>{
-    if(JSON.stringify(prev[k])!==JSON.stringify(curr[k])){
-      diffs.push({key:k, old:prev[k], new:curr[k]});
-    }
-  });
-  if(!diffs.length){
-    return `<div class="no-diff">No packet field changes between F${activeFrameIdx-1} and F${activeFrameIdx}.</div>`;
-  }
-  let h = `<div class="igroup">
-    <div class="igroup-title">F${activeFrameIdx-1} → F${activeFrameIdx} Changes (${diffs.length} fields)</div>`;
-  diffs.forEach(d=>{
-    const lbl = d.key.replace(/([A-Z])/g,' $1').trim();
-    h += `<div class="diff-item">
-      <div class="diff-field">${esc(lbl)}</div>
-      ${d.old!==undefined?`<span class="diff-old">${esc(String(d.old))}</span>`:''}
-      <span class="diff-arrow">↓</span>
-      ${d.new!==undefined?`<span class="diff-new">${esc(String(d.new))}</span>`:'<span style="color:var(--text3);font-size:10px">(removed)</span>'}
+function renderLog(){
+  const fr  = frame(), sc = scenario();
+  const LC  = {'osi-app':'#3fb950','osi-transport':'#a371f7','osi-network':'#e3b341','osi-link':'#ff7b72','osi-physical':'#8b949e'};
+  const col = LC[fr.osiClass] || '#58a6ff';
+
+  let h = `<div class="igroup-title" style="color:${col};margin-bottom:10px">
+    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:6px;vertical-align:middle"></span>
+    Frame ${activeFrameIdx} — ${esc(fr.name)}
+  </div><div class="log-cards">`;
+
+  // One card per non-empty line
+  fr.log.forEach(line => {
+    if(!line.trim()) return; // skip blanks
+    const isHL    = line.includes('→') || line.includes('✓') || line.includes('COMPLETE') || line.includes('ESTABLISHED') || line.includes('PASSED');
+    const isSub   = line.startsWith('  ') || line.startsWith('\t');
+    h += `<div class="log-card ${isHL?'highlight':''}" style="--lc-color:${col}">
+      <div class="log-card-text ${isSub?'sub':''}">${esc(line.trim())}</div>
     </div>`;
   });
-  h += '</div>';
-  return h;
+
+  return h + '</div>';
 }
 
-// ── PATH TAB ──
+function renderDiff(){
+  if(!activeFrameIdx) return `<div class="no-diff">Navigate to Frame 1+ to see changes.</div>`;
+  const prev = scenario().frames[activeFrameIdx-1].packet||{};
+  const curr = frame().packet||{};
+  const keys = new Set([...Object.keys(prev),...Object.keys(curr)]);
+  const diffs = [];
+  keys.forEach(k => { if(JSON.stringify(prev[k])!==JSON.stringify(curr[k])) diffs.push({key:k,old:prev[k],new:curr[k]}); });
+  if(!diffs.length) return `<div class="no-diff">No changes between F${activeFrameIdx-1} and F${activeFrameIdx}.</div>`;
+  let h = `<div class="igroup"><div class="igroup-title">F${activeFrameIdx-1} → F${activeFrameIdx} &nbsp;(${diffs.length} fields)</div>`;
+  diffs.forEach(d => {
+    h += `<div class="diff-item">
+      <div class="diff-field">${esc(d.key.replace(/([A-Z])/g,' $1').trim())}</div>
+      ${d.old!==undefined?`<span class="diff-old">${esc(String(d.old))}</span>`:''}
+      <span class="diff-arrow">↓</span>
+      ${d.new!==undefined?`<span class="diff-new">${esc(String(d.new))}</span>`:'<span style="color:var(--text3);font-size:11px">(removed)</span>'}
+    </div>`;
+  });
+  return h + '</div>';
+}
+
 function renderPath(){
-  const sc = scenario();
-  const fr = frame();
-  let h = `<div class="igroup">
-    <div class="igroup-title">Network Path</div>
-    <div class="hop-path">`;
+  const sc=scenario(), fr=frame();
+  let h=`<div class="igroup"><div class="igroup-title">Network Path</div><div class="hop-path">`;
   sc.topology.forEach((node,i)=>{
-    const isCurrent = i === fr.activeHop;
-    const isVisited = i < fr.activeHop;
-    const cls = isCurrent?'current':isVisited?'visited':'pending';
-    h += `<div class="hop-path-item ${cls}">
-      <span style="font-size:16px">${node.icon}</span>
+    const isCurrent=i===fr.activeHop, isVisited=i<fr.activeHop;
+    const cls=isCurrent?'current':isVisited?'visited':'pending';
+    h+=`<div class="hop-path-item ${cls}">
+      <span style="font-size:18px">${node.icon}</span>
       <div>
         <div class="hop-path-label">${esc(node.label)}</div>
         <div class="hop-path-sub">${esc(node.sub)}</div>
       </div>
-      ${isCurrent?`<span style="margin-left:auto;color:var(--green);font-size:11px;font-family:var(--mono)">← HERE</span>`:''}
+      ${isCurrent?`<span style="margin-left:auto;color:var(--green);font-size:10px;font-family:var(--mono);font-weight:700">← ACTIVE</span>`:''}
     </div>`;
-    if(i < sc.topology.length-1){
-      h += `<div class="hop-arrow-down">${isVisited||isCurrent?'↓':'·'}</div>`;
-    }
+    if(i<sc.topology.length-1)
+      h+=`<div class="hop-arrow-down">${isVisited||isCurrent?'↓':'·'}</div>`;
   });
-  h += `</div></div>
-  <div class="igroup">
-    <div class="igroup-title">Scenario</div>
-    <div style="font-size:12px;color:var(--text2);line-height:1.7;font-family:var(--sans)">${esc(sc.description)}</div>
+  h+=`</div></div><div class="igroup">
+    <div class="igroup-title">About this scenario</div>
+    <div style="font-size:12.5px;color:var(--text2);line-height:1.7">${esc(sc.description)}</div>
   </div>`;
   return h;
 }
 
-// ─────────────────────────────────────────────
-// UTILS
-// ─────────────────────────────────────────────
 function esc(s){
-  return String(s)
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ─────────────────────────────────────────────
-// START
-// ─────────────────────────────────────────────
 boot();
 </script>
 </body>
