@@ -1,23 +1,26 @@
 /**
  * Suite 3 — Electron Main Process
  *
- * Tests main.js: window config, IPC registration, app lifecycle,
- * and NODE_ENV behaviour. Electron is fully mocked — no real
- * window is ever created.
+ * Strategy: mock Electron, clear Node's require cache,
+ * load main.js fresh, then synchronously call the createWindow
+ * function that was passed to app.whenReady().then().
  *
- * Root cause of previous failures:
- *   main.js calls  app.whenReady().then(createWindow)
- *   The mock returned Promise.resolve() but beforeAll never
- *   awaited the .then() — so createWindow never ran, leaving
- *   ipcMain.on / app.on / Menu calls empty.
- *
- * Fix: mock app.whenReady to return a Promise whose .then()
- *   we can capture and flush synchronously before assertions.
+ * main.js exports nothing — it runs entirely as side effects.
+ * We test those side effects via the mocks.
  */
 
 // ─────────────────────────────────────────────────────────────
-// Shared mock objects — defined before jest.mock() factory runs
+// Mocks must be declared before any require() calls.
+// jest.mock() is hoisted to the top of the file automatically.
 // ─────────────────────────────────────────────────────────────
+
+// Holds the createWindow fn once main.js calls whenReady().then(fn)
+let capturedCreateWindow = null;
+
+// Holds all ipcMain.on registrations: { channel -> handler }
+const ipcHandlers = {};
+
+// The mock window instance returned by new BrowserWindow()
 const mockWin = {
   loadFile:    jest.fn(),
   maximize:    jest.fn(),
@@ -27,71 +30,77 @@ const mockWin = {
   isMaximized: jest.fn(() => false),
   unmaximize:  jest.fn(),
   webContents: { openDevTools: jest.fn() },
-  // Immediately invoke 'ready-to-show' so createWindow body fully executes
-  once: jest.fn((event, cb) => { if (event === 'ready-to-show') cb(); }),
+  once:        jest.fn((event, cb) => {
+    // Immediately fire ready-to-show so the callback runs synchronously
+    if (event === 'ready-to-show') cb();
+  }),
 };
 
-// Captures the callback main.js passes to .then()
-let whenReadyCallback = null;
+jest.mock('electron', () => {
+  return {
+    app: {
+      whenReady: jest.fn(() => ({
+        then: jest.fn((fn) => {
+          // Capture the function — we'll call it manually in beforeAll
+          capturedCreateWindow = fn;
+          return { catch: jest.fn() };
+        }),
+      })),
+      on:   jest.fn(),
+      quit: jest.fn(),
+    },
+    BrowserWindow: jest.fn().mockImplementation(() => mockWin),
+    Menu: {
+      setApplicationMenu: jest.fn(),
+    },
+    ipcMain: {
+      on: jest.fn((channel, handler) => {
+        ipcHandlers[channel] = handler;
+      }),
+    },
+  };
+});
 
-jest.mock('electron', () => ({
-  app: {
-    whenReady: jest.fn(() => ({
-      // Capture the createWindow fn so we can call it manually
-      then: jest.fn(cb => { whenReadyCallback = cb; return Promise.resolve(); }),
-    })),
-    on:         jest.fn(),
-    quit:       jest.fn(),
-    getName:    jest.fn(() => 'PacketTime Debugger'),
-    getVersion: jest.fn(() => '1.0.0'),
-  },
-  BrowserWindow:    jest.fn(() => mockWin),
-  Menu:             { setApplicationMenu: jest.fn() },
-  ipcMain:          { on: jest.fn() },
-}));
-
-// dotenv: no-op — .env file isn't needed in the test environment
 jest.mock('dotenv', () => ({ config: jest.fn() }), { virtual: true });
 
 // ─────────────────────────────────────────────────────────────
-// Require mocked modules AFTER jest.mock() declarations
+// Load main.js ONCE for the entire test file.
+// Must happen after jest.mock() declarations.
 // ─────────────────────────────────────────────────────────────
+beforeAll(() => {
+  process.env.NODE_ENV = 'production';
+  process.env.OPEN_DEVTOOLS = 'false';
+
+  // Clear Node's require cache so main.js runs fresh
+  jest.resetModules();
+
+  // Load main.js — this runs:
+  //   app.whenReady().then(createWindow)  → captures createWindow
+  //   app.on('window-all-closed', ...)
+  //   app.on('activate', ...)
+  require('../main.js');
+
+  // Now synchronously invoke createWindow — this runs:
+  //   new BrowserWindow(...)
+  //   win.loadFile(...)
+  //   win.once('ready-to-show', cb)  → fires cb immediately (mock)
+  //   ipcMain.on('win-minimize', ...)
+  //   ipcMain.on('win-maximize', ...)
+  //   ipcMain.on('win-close', ...)
+  //   Menu.setApplicationMenu(null)   (production mode)
+  expect(typeof capturedCreateWindow).toBe('function');
+  capturedCreateWindow();
+});
+
+// Re-require the mocked modules so we reference the same instances
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 
 // ─────────────────────────────────────────────────────────────
-// Bootstrap — load main.js once for the whole file,
-// then manually fire the whenReady callback (= createWindow)
+// Helpers
 // ─────────────────────────────────────────────────────────────
-beforeAll(() => {
-  process.env.NODE_ENV = 'production'; // deterministic — no DevTools branch
-  require('../main.js');
-
-  // At this point main.js has run:
-  //   app.whenReady().then(createWindow)  ← .then() captured createWindow
-  //   app.on('window-all-closed', ...)    ← registered
-  //   app.on('activate', ...)             ← registered
-  //
-  // createWindow hasn't run yet — call it now:
-  if (typeof whenReadyCallback === 'function') {
-    whenReadyCallback();
-  }
-});
-
-// Convenience: get the options object passed to new BrowserWindow(...)
-function windowOpts() {
-  return BrowserWindow.mock.calls[0]?.[0] ?? null;
-}
-
-// Convenience: get all channels registered with ipcMain.on
-function ipcChannels() {
-  return ipcMain.on.mock.calls.map(c => c[0]);
-}
-
-// Convenience: get the handler registered for a given IPC channel
-function ipcHandler(channel) {
-  const call = ipcMain.on.mock.calls.find(c => c[0] === channel);
-  return call?.[1] ?? null;
-}
+const windowOpts  = () => BrowserWindow.mock.calls[0]?.[0] ?? null;
+const ipcChannels = () => ipcMain.on.mock.calls.map(c => c[0]);
+const ipcHandler  = (ch) => ipcMain.on.mock.calls.find(c => c[0] === ch)?.[1] ?? null;
 
 // ─────────────────────────────────────────────────────────────
 // BrowserWindow configuration
@@ -137,8 +146,7 @@ describe('BrowserWindow configuration', () => {
 
   test('loadFile is called with index.html', () => {
     expect(mockWin.loadFile).toHaveBeenCalledTimes(1);
-    const filePath = mockWin.loadFile.mock.calls[0][0];
-    expect(filePath).toContain('index.html');
+    expect(mockWin.loadFile.mock.calls[0][0]).toContain('index.html');
   });
 
   test('maximize is called on ready-to-show', () => {
@@ -176,7 +184,6 @@ describe('IPC handlers — registration', () => {
 // ─────────────────────────────────────────────────────────────
 describe('IPC handlers — behaviour', () => {
   beforeEach(() => {
-    // Reset call counts before each handler behaviour test
     mockWin.minimize.mockClear();
     mockWin.maximize.mockClear();
     mockWin.unmaximize.mockClear();
@@ -193,14 +200,14 @@ describe('IPC handlers — behaviour', () => {
     expect(mockWin.close).toHaveBeenCalledTimes(1);
   });
 
-  test('win-maximize calls win.maximize() when window is not maximized', () => {
+  test('win-maximize calls win.maximize() when not maximized', () => {
     mockWin.isMaximized.mockReturnValueOnce(false);
     ipcHandler('win-maximize')();
     expect(mockWin.maximize).toHaveBeenCalledTimes(1);
     expect(mockWin.unmaximize).not.toHaveBeenCalled();
   });
 
-  test('win-maximize calls win.unmaximize() when window is already maximized', () => {
+  test('win-maximize calls win.unmaximize() when already maximized', () => {
     mockWin.isMaximized.mockReturnValueOnce(true);
     ipcHandler('win-maximize')();
     expect(mockWin.unmaximize).toHaveBeenCalledTimes(1);
@@ -212,34 +219,40 @@ describe('IPC handlers — behaviour', () => {
 // App lifecycle
 // ─────────────────────────────────────────────────────────────
 describe('App lifecycle', () => {
-  test('app.whenReady().then() was called', () => {
+  test('app.whenReady was called', () => {
     expect(app.whenReady).toHaveBeenCalledTimes(1);
   });
 
-  test('app.on is registered for window-all-closed', () => {
+  test('app.on registered window-all-closed', () => {
     const events = app.on.mock.calls.map(c => c[0]);
     expect(events).toContain('window-all-closed');
   });
 
-  test('app.on is registered for activate', () => {
+  test('app.on registered activate', () => {
     const events = app.on.mock.calls.map(c => c[0]);
     expect(events).toContain('activate');
   });
 
-  test('Menu.setApplicationMenu is called in production', () => {
-    // NODE_ENV=production was set in beforeAll — menu should be suppressed
+  test('Menu.setApplicationMenu(null) called in production', () => {
     expect(Menu.setApplicationMenu).toHaveBeenCalledWith(null);
   });
 
-  test('window-all-closed handler quits on non-darwin', () => {
-    const originalPlatform = process.platform;
+  test('window-all-closed quits app on win32', () => {
     Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
-
     const handler = app.on.mock.calls.find(c => c[0] === 'window-all-closed')?.[1];
-    if (handler) handler();
+    app.quit.mockClear();
+    handler?.();
     expect(app.quit).toHaveBeenCalled();
+    Object.defineProperty(process, 'platform', { value: process.platform, configurable: true });
+  });
 
-    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+  test('window-all-closed does NOT quit on darwin', () => {
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+    const handler = app.on.mock.calls.find(c => c[0] === 'window-all-closed')?.[1];
+    app.quit.mockClear();
+    handler?.();
+    expect(app.quit).not.toHaveBeenCalled();
+    Object.defineProperty(process, 'platform', { value: process.platform, configurable: true });
   });
 });
 
@@ -247,22 +260,22 @@ describe('App lifecycle', () => {
 // Environment behaviour
 // ─────────────────────────────────────────────────────────────
 describe('Environment behaviour', () => {
-  test('isDev is true when NODE_ENV is development', () => {
+  test('isDev true when NODE_ENV is development', () => {
     process.env.NODE_ENV = 'development';
     expect(process.env.NODE_ENV === 'development').toBe(true);
   });
 
-  test('isDev is false when NODE_ENV is production', () => {
+  test('isDev false when NODE_ENV is production', () => {
     process.env.NODE_ENV = 'production';
     expect(process.env.NODE_ENV === 'development').toBe(false);
   });
 
-  test('isDev is false when NODE_ENV is test', () => {
+  test('isDev false when NODE_ENV is test', () => {
     process.env.NODE_ENV = 'test';
     expect(process.env.NODE_ENV === 'development').toBe(false);
   });
 
-  test('OPEN_DEVTOOLS defaults to false', () => {
+  test('OPEN_DEVTOOLS false by default', () => {
     delete process.env.OPEN_DEVTOOLS;
     expect(process.env.OPEN_DEVTOOLS === 'true').toBe(false);
   });
