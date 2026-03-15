@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'">
+<title>PacketTime Debugger</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+/* ─── RESET ─── */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:      #0d1117;
+  --bg2:     #161b22;
+  --bg3:     #1c2330;
+  --bg4:     #21262d;
+  --bg5:     #2d333b;
+  --border:  #30363d;
+  --border2: #3d444d;
+  --text:    #e6edf3;
+  --text2:   #adbac7;
+  --text3:   #768390;
+  --green:   #3fb950;
+  --green2:  #26a641;
+  --blue:    #58a6ff;
+  --blue2:   #1f6feb;
+  --amber:   #e3b341;
+  --amber2:  #d29922;
+  --red:     #f85149;
+  --coral:   #ff7b72;
+  --purple:  #a371f7;
+  --teal:    #2ea043;
+  --mono:    'JetBrains Mono', 'Courier New', monospace;
+  --sans:    -apple-system, 'Segoe UI', system-ui, sans-serif;
+}
+
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  font-size:13px;
+  height:100vh;
+  overflow:hidden;
+  line-height:1.5;
+}
+
+/* ─── APP SHELL ─── */
+.app{
+  display:grid;
+  grid-template-columns:240px 1fr 300px;
+  grid-template-rows:44px 1fr 110px;
+  height:100vh;
+  overflow:hidden;
+}
+
+/* ─── TITLE BAR ─── */
+.titlebar{
+  grid-column:1/-1;
+  background:var(--bg2);
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  padding:0 16px;
+  gap:12px;
+  -webkit-app-region:drag;
+  user-select:none;
+}
+.titlebar-logo{
+  font-size:14px;
+  font-weight:700;
+  color:var(--green);
+  letter-spacing:1px;
+  font-family:var(--mono);
+  -webkit-app-region:no-drag;
+}
+.titlebar-sep{color:var(--text3);font-size:12px}
+.titlebar-scenario{font-size:12px;color:var(--text2);font-family:var(--sans)}
+.titlebar-spacer{flex:1}
+.titlebar-btns{display:flex;gap:6px;-webkit-app-region:no-drag}
+.tb-btn{
+  font-size:10px;font-weight:500;
+  background:var(--bg3);border:1px solid var(--border);
+  color:var(--text2);padding:3px 10px;border-radius:4px;
+  cursor:pointer;transition:all .15s;
+  display:flex;align-items:center;gap:4px;
+}
+.tb-btn:hover{background:var(--bg4);color:var(--text);border-color:var(--border2)}
+.tb-btn.primary{background:#0d2e14;border-color:var(--green2);color:var(--green)}
+.tb-btn.primary:hover{background:#122e1a}
+
+/* ─── LEFT SIDEBAR: SCENARIO LIST ─── */
+.sidebar{
+  background:var(--bg2);
+  border-right:1px solid var(--border);
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+}
+.sidebar-header{
+  padding:10px 12px 8px;
+  font-size:10px;font-weight:700;
+  color:var(--text3);
+  font-family:var(--mono);
+  text-transform:uppercase;letter-spacing:1.2px;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.scenario-list{flex:1;padding:4px 0}
+.scenario-item{
+  display:flex;align-items:center;gap:9px;
+  padding:8px 10px 8px 12px;
+  cursor:pointer;
+  transition:background .1s;
+  border-left:2px solid transparent;
+  min-width:0;
+}
+.scenario-item:hover{background:var(--bg3)}
+.scenario-item.active{
+  background:var(--bg3);
+  border-left-color:var(--green);
+}
+.scenario-icon{font-size:15px;flex-shrink:0;line-height:1;width:20px;text-align:center}
+.scenario-text{flex:1;min-width:0;overflow:hidden}
+.scenario-title{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--sans)}
+.scenario-sub{font-size:10px;color:var(--text3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--sans)}
+.scenario-badge{
+  flex-shrink:0;
+  font-size:9px;font-weight:700;
+  padding:2px 5px;border-radius:3px;
+  background:var(--bg4);color:var(--text3);
+  white-space:nowrap;font-family:var(--mono);
+}
+.scenario-item.active .scenario-badge{background:#0d2e14;color:var(--green)}
+
+/* ─── CENTER: MAIN CANVAS ─── */
+.main{
+  background:var(--bg);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  position:relative;
+}
+.viz-area{
+  flex:1;
+  position:relative;
+  overflow:hidden;
+}
+#net-svg{
+  width:100%;height:100%;
+  display:block;
+  /* Let SVG scale to fill the container, centered */
+  preserveAspectRatio:xMidYMid meet;
+}
+
+/* Frame info bar — sits at bottom of viz, NOT floating over nodes */
+.frame-overlay{
+  position:absolute;bottom:0;left:0;right:0;
+  display:flex;align-items:center;gap:10px;
+  padding:8px 14px;
+  background:linear-gradient(transparent, rgba(13,17,23,0.95));
+  pointer-events:none;
+}
+.frame-label{
+  font-size:9px;font-weight:700;color:var(--text3);
+  text-transform:uppercase;letter-spacing:1.2px;
+  font-family:var(--mono);
+}
+.frame-num{font-size:22px;font-weight:700;color:var(--green);line-height:1;min-width:32px;font-family:var(--mono)}
+.frame-name{font-size:13px;font-weight:600;color:var(--text);font-family:var(--sans)}
+.frame-device{font-size:11px;color:var(--text3);margin-left:4px;font-family:var(--sans)}
+
+.osi-pill{
+  position:absolute;top:10px;right:12px;
+  font-size:10px;font-weight:700;padding:4px 12px;
+  border-radius:12px;text-transform:uppercase;letter-spacing:0.8px;
+  pointer-events:none;font-family:var(--mono);
+}
+.osi-app     {background:#0d2e0d;color:var(--green);border:1px solid #1a5e1a}
+.osi-transport{background:#1a0e2e;color:var(--purple);border:1px solid #3a1e5e}
+.osi-network {background:#2e1e00;color:var(--amber);border:1px solid #5e3e00}
+.osi-link    {background:#2e0e0e;color:var(--coral);border:1px solid #5e1e1e}
+.osi-physical{background:#1c2330;color:var(--text2);border:1px solid var(--border2)}
+
+/* ─── RIGHT PANEL: INSPECTOR ─── */
+.inspector{
+  background:var(--bg2);
+  border-left:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.inspector-tabs{
+  display:flex;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.itab{
+  flex:1;padding:10px 4px;text-align:center;
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;
+  color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;
+  transition:all .15s;font-family:var(--mono);
+}
+.itab:hover{color:var(--text2)}
+.itab.active{color:var(--green);border-bottom-color:var(--green)}
+.inspector-body{flex:1;overflow-y:auto;padding:12px}
+
+/* Inspector content */
+.igroup{margin-bottom:16px}
+.igroup-title{
+  font-size:9px;font-weight:700;text-transform:uppercase;
+  letter-spacing:1.2px;color:var(--text3);
+  margin-bottom:8px;padding-bottom:6px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:6px;
+  font-family:var(--mono);
+}
+.irow{
+  display:flex;justify-content:space-between;align-items:baseline;
+  padding:5px 0;border-bottom:1px solid var(--bg3);
+  gap:10px;
+}
+.ikey{font-size:11px;color:var(--text3);flex-shrink:0;font-weight:400;font-family:var(--mono)}
+.ival{
+  font-size:11px;color:var(--text);text-align:right;
+  word-break:break-all;max-width:180px;font-weight:500;
+  font-family:var(--mono);
+}
+.ival.changed{color:var(--amber);font-weight:700}
+.ival.new-val{color:var(--green);font-weight:700}
+
+/* Log entries */
+.log-wrap{display:flex;flex-direction:column;gap:2px}
+.log-line{
+  font-size:12px;color:var(--text2);
+  padding:4px 0 4px 10px;
+  border-left:2px solid var(--border);
+  line-height:1.6;
+  font-family:var(--sans);
+}
+.log-line.highlight{color:var(--text);border-left-color:var(--green)}
+.log-line.empty{border-left-color:transparent;color:var(--text3);height:8px}
+
+/* Diff */
+.diff-item{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.diff-field{font-size:11px;font-weight:700;color:var(--text);margin-bottom:5px;font-family:var(--mono);text-transform:uppercase;letter-spacing:0.5px}
+.diff-old{font-size:11px;color:var(--red);background:#2d0f0f;padding:3px 8px;border-radius:3px;display:inline-block;margin-bottom:3px;font-family:var(--mono)}
+.diff-arrow{font-size:11px;color:var(--text3);margin:2px 0;display:block;font-family:var(--mono)}
+.diff-new{font-size:11px;color:var(--green);background:#0d2e0d;padding:3px 8px;border-radius:3px;display:inline-block;font-family:var(--mono)}
+.no-diff{font-size:12px;color:var(--text3);padding:10px 0;font-family:var(--sans)}
+
+/* Path hop list in inspector */
+.hop-path{display:flex;flex-direction:column;gap:3px}
+.hop-path-item{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 8px;border-radius:5px;
+}
+.hop-path-item.current{background:var(--bg3);border:1px solid var(--green2);color:var(--green)}
+.hop-path-item.visited{color:var(--text3);border:1px solid transparent}
+.hop-path-item.pending{color:var(--text3);opacity:0.4;border:1px solid transparent}
+.hop-path-label{font-size:12px;font-weight:600;font-family:var(--sans)}
+.hop-path-sub{font-size:10px;opacity:0.65;font-family:var(--mono)}
+.hop-arrow-down{color:var(--text3);font-size:10px;padding-left:14px}
+
+/* ─── BOTTOM: TIMELINE ─── */
+.timeline{
+  grid-column:1/-1;
+  background:var(--bg2);
+  border-top:1px solid var(--border);
+  padding:6px 14px 6px;
+  display:flex;flex-direction:column;gap:4px;
+  overflow:hidden;
+}
+.tl-top{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.tl-ctrl{display:flex;align-items:center;gap:3px}
+
+.tl-play{
+  width:28px;height:28px;border-radius:50%;
+  border:1px solid var(--green2);background:transparent;
+  color:var(--green);font-size:11px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .15s;flex-shrink:0;
+}
+.tl-play:hover{background:var(--green2);color:#fff}
+.tl-play.playing{border-color:var(--amber);color:var(--amber)}
+.tl-play.playing:hover{background:#2e1e00}
+
+.tl-step{
+  width:22px;height:22px;border-radius:4px;
+  border:1px solid var(--border);background:var(--bg3);
+  color:var(--text2);font-size:9px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .15s;
+}
+.tl-step:hover{background:var(--bg4);color:var(--text)}
+
+.tl-divider{width:1px;height:18px;background:var(--border);margin:0 2px}
+
+.tl-info{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.tl-fn{font-size:14px;font-weight:700;color:var(--blue);min-width:36px;flex-shrink:0;font-family:var(--mono)}
+.tl-fname{font-size:12px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--sans)}
+.tl-device{font-size:10px;color:var(--text3);flex-shrink:0;font-family:var(--sans)}
+.tl-speed-wrap{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.tl-speed-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;white-space:nowrap;font-family:var(--mono)}
+.tl-speed{width:60px;flex-shrink:0}
+.tl-speed-val{font-size:10px;color:var(--amber);min-width:28px;white-space:nowrap;font-family:var(--mono)}
+
+/* Slider */
+.tl-slider-wrap{display:flex;align-items:center;flex-shrink:0}
+.tl-range{
+  -webkit-appearance:none;appearance:none;
+  width:100%;height:3px;border-radius:2px;outline:none;cursor:pointer;
+  background:linear-gradient(to right, var(--green) 0%, var(--green) var(--pct,0%), var(--bg5) var(--pct,0%), var(--bg5) 100%);
+}
+.tl-range::-webkit-slider-thumb{
+  -webkit-appearance:none;width:12px;height:12px;
+  border-radius:50%;background:var(--blue);cursor:pointer;
+  border:2px solid var(--bg2);
+  box-shadow:0 0 6px rgba(88,166,255,0.5);
+}
+
+/* Ticks — fixed height, never growing */
+.tl-ticks{
+  display:flex;align-items:stretch;height:14px;gap:2px;flex-shrink:0;
+}
+.tl-tick{
+  flex:1;min-width:4px;max-width:40px;border-radius:1px;
+  cursor:pointer;transition:opacity .15s;opacity:0.3;
+  height:100%;
+}
+.tl-tick:hover{opacity:0.7}
+.tl-tick.past{opacity:0.55}
+.tl-tick.current{opacity:1;outline:1px solid rgba(255,255,255,0.3)}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* SVG nodes */
+.svg-node{cursor:pointer}
+.svg-node circle,.svg-node rect{transition:all .3s}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+<!-- TITLE BAR -->
+<div class="titlebar">
+  <span class="titlebar-logo">⬡ PACKETTIME</span>
+  <span class="titlebar-sep">/</span>
+  <span class="titlebar-scenario" id="tb-scenario">ARP Process</span>
+  <div class="titlebar-spacer"></div>
+  <div class="titlebar-btns">
+    <button class="tb-btn" onclick="replayFrom()">↺ Replay</button>
+    <button class="tb-btn" onclick="resetSim()">⟨ Reset</button>
+    <button class="tb-btn primary" onclick="togglePlay()" id="tb-play">▶ Play</button>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-header">Scenarios — 10</div>
+  <div class="scenario-list" id="scenario-list"></div>
+</div>
+
+<!-- CENTER VIZ -->
+<div class="main">
+  <div class="viz-area">
+    <svg id="net-svg" viewBox="0 0 620 320"></svg>
+    <div class="frame-overlay">
+      <div class="frame-label">Frame</div>
+      <div class="frame-num" id="fo-num">0</div>
+      <div class="frame-name" id="fo-name">—</div>
+      <div class="frame-device" id="fo-device">—</div>
+    </div>
+    <div class="osi-pill osi-app" id="osi-pill">Application</div>
+  </div>
+</div>
+
+<!-- INSPECTOR -->
+<div class="inspector">
+  <div class="inspector-tabs">
+    <div class="itab active" id="itab-packet" onclick="setTab('packet')">Packet</div>
+    <div class="itab" id="itab-log"    onclick="setTab('log')">Log</div>
+    <div class="itab" id="itab-diff"   onclick="setTab('diff')">Diff</div>
+    <div class="itab" id="itab-path"   onclick="setTab('path')">Path</div>
+  </div>
+  <div class="inspector-body" id="inspector-body"></div>
+</div>
+
+<!-- TIMELINE -->
+<div class="timeline">
+  <div class="tl-top">
+    <div class="tl-ctrl">
+      <button class="tl-step" onclick="step(-1)">◀</button>
+      <button class="tl-play" id="tl-play" onclick="togglePlay()">▶</button>
+      <button class="tl-step" onclick="step(1)">▶</button>
+    </div>
+    <div class="tl-divider"></div>
+    <div class="tl-info">
+      <span class="tl-fn" id="tl-fn">F0</span>
+      <div>
+        <div class="tl-fname" id="tl-fname">—</div>
+        <div class="tl-device" id="tl-device">—</div>
+      </div>
+    </div>
+    <div class="tl-speed-wrap">
+      <span class="tl-speed-lbl">Speed</span>
+      <input type="range" class="tl-speed tl-range" min="1" max="5" value="2" step="1"
+        oninput="setSpeed(this.value)" style="--pct:25%;background:linear-gradient(to right,var(--amber) 0%,var(--amber) 25%,var(--bg5) 25%,var(--bg5) 100%)">
+      <span class="tl-speed-val" id="speed-val">1×</span>
+    </div>
+  </div>
+  <div class="tl-slider-wrap">
+    <input type="range" class="tl-range" id="tl-range" min="0" max="6" value="0" step="1"
+      oninput="onRange(this)" style="--pct:0%">
+  </div>
+  <div class="tl-ticks" id="tl-ticks"></div>
+</div>
+
+</div>
+
+<script src="scenarios.js"></script>
+<script>
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+let activeScenarioIdx = 0;
+let activeFrameIdx    = 0;
+let activeTab         = 'packet';
+let playTimer         = null;
+let isPlaying         = false;
+let playSpeed         = 1; // multiplier
+const SPEEDS          = [3000, 2000, 1400, 900, 400];
+
+function scenario(){ return SCENARIOS[activeScenarioIdx]; }
+function frame(){    return scenario().frames[activeFrameIdx]; }
+
+// ─────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────
+function boot(){
+  buildSidebar();
+  loadScenario(0);
+}
+
+function buildSidebar(){
+  const el = document.getElementById('scenario-list');
+  el.innerHTML = SCENARIOS.map((s,i)=>`
+    <div class="scenario-item ${i===0?'active':''}" id="si-${i}" onclick="loadScenario(${i})">
+      <span class="scenario-icon">${s.icon}</span>
+      <div class="scenario-text">
+        <div class="scenario-title">${s.title}</div>
+        <div class="scenario-sub">${s.subtitle}</div>
+      </div>
+      <span class="scenario-badge">${s.frames.length}F</span>
+    </div>
+  `).join('');
+}
+
+function loadScenario(idx){
+  stopPlay();
+  activeScenarioIdx = idx;
+  activeFrameIdx    = 0;
+  // update sidebar active
+  document.querySelectorAll('.scenario-item').forEach((el,i)=>
+    el.classList.toggle('active', i===idx));
+  // update titlebar
+  document.getElementById('tb-scenario').textContent = scenario().title;
+  // rebuild timeline range
+  const r = document.getElementById('tl-range');
+  r.max   = scenario().frames.length - 1;
+  r.value = 0;
+  r.style.setProperty('--pct','0%');
+  buildTicks();
+  buildSVG();
+  goToFrame(0);
+}
+
+// ─────────────────────────────────────────────
+// SVG NETWORK TOPOLOGY
+// ─────────────────────────────────────────────
+const SVG_W = 620, SVG_H = 320;
+
+function buildSVG(){
+  const svg = document.getElementById('net-svg');
+  const topo = scenario().topology;
+  const edges = scenario().edges;
+  const sc = scenario();
+
+  // Compute bounding box of all nodes to auto-fit viewBox
+  const xs = topo.map(n=>n.x), ys = topo.map(n=>n.y);
+  const minX = Math.min(...xs)-60, maxX = Math.max(...xs)+60;
+  const minY = Math.min(...ys)-60, maxY = Math.max(...ys)+60;
+  const vw = Math.max(maxX-minX, 300);
+  const vh = Math.max(maxY-minY, 200);
+
+  svg.setAttribute('viewBox', `${minX} ${minY} ${vw} ${vh}`);
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+  let html = `<defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 2L8 5L2 8" fill="none" stroke="#3d444d" stroke-width="1.5" stroke-linecap="round"/>
+    </marker>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow2">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>`;
+
+  // edges
+  edges.forEach(([a,b])=>{
+    const na=topo[a], nb=topo[b];
+    html += `<line id="edge-${a}-${b}" x1="${na.x}" y1="${na.y}" x2="${nb.x}" y2="${nb.y}"
+      stroke="#21262d" stroke-width="1.5" stroke-dasharray="6 4"/>`;
+  });
+
+  // active edge highlight
+  html += `<line id="active-edge" x1="0" y1="0" x2="0" y2="0"
+    stroke="${sc.color}" stroke-width="2.5" opacity="0" filter="url(#glow)"/>`;
+
+  // packet dot
+  const n0 = topo[0];
+  html += `<circle id="pkt" cx="${n0.x}" cy="${n0.y}" r="8" fill="${sc.color}"
+    filter="url(#glow2)" opacity="1"/>`;
+
+  // nodes — radius 32 for better visibility
+  topo.forEach(n=>{
+    html += `
+    <g class="svg-node" id="svgn-${n.id}" onclick="jumpToHop(${n.id})">
+      <circle cx="${n.x}" cy="${n.y}" r="32" fill="#1c2330" stroke="#30363d" stroke-width="1.5" id="nc-${n.id}"/>
+      <text x="${n.x}" y="${n.y+1}" text-anchor="middle" dominant-baseline="central"
+        font-size="20" style="pointer-events:none">${n.icon}</text>
+      <text x="${n.x}" y="${n.y+42}" text-anchor="middle"
+        font-size="10" fill="#8b949e" font-family="JetBrains Mono,monospace"
+        font-weight="600" style="pointer-events:none">${n.label}</text>
+      <text x="${n.x}" y="${n.y+54}" text-anchor="middle"
+        font-size="8" fill="#545d68" font-family="JetBrains Mono,monospace"
+        style="pointer-events:none" id="nsub-${n.id}">${n.sub}</text>
+    </g>`;
+  });
+
+  svg.innerHTML = html;
+}
+
+function updateSVG(){
+  const sc    = scenario();
+  const topo  = sc.topology;
+  const fr    = frame();
+  const hop   = fr.activeHop;
+
+  // node styles
+  topo.forEach((_,i)=>{
+    const c = document.getElementById(`nc-${i}`);
+    if(!c) return;
+    if(i === hop){
+      c.setAttribute('fill','#0d2e1a');
+      c.setAttribute('stroke', sc.color);
+      c.setAttribute('stroke-width','2.5');
+      c.setAttribute('filter','url(#glow)');
+    } else if(i < hop){
+      c.setAttribute('fill','#0d1e0d');
+      c.setAttribute('stroke','#238636');
+      c.setAttribute('stroke-width','1');
+      c.removeAttribute('filter');
+    } else {
+      c.setAttribute('fill','#1c2330');
+      c.setAttribute('stroke','#30363d');
+      c.setAttribute('stroke-width','1');
+      c.removeAttribute('filter');
+    }
+  });
+
+  // move packet dot
+  const pkt = document.getElementById('pkt');
+  if(pkt){
+    const n = topo[Math.min(hop, topo.length-1)];
+    pkt.setAttribute('cx', n.x);
+    pkt.setAttribute('cy', n.y);
+    pkt.setAttribute('fill', sc.color);
+  }
+
+  // active edge
+  const ae = document.getElementById('active-edge');
+  if(ae && hop > 0 && hop < topo.length){
+    const a = topo[hop-1], b = topo[hop];
+    ae.setAttribute('x1',a.x); ae.setAttribute('y1',a.y);
+    ae.setAttribute('x2',b.x); ae.setAttribute('y2',b.y);
+    ae.setAttribute('opacity','0.6');
+    ae.setAttribute('stroke', sc.color);
+  } else if(ae){
+    ae.setAttribute('opacity','0');
+  }
+}
+
+// ─────────────────────────────────────────────
+// FRAME NAVIGATION
+// ─────────────────────────────────────────────
+function goToFrame(idx){
+  const sc   = scenario();
+  idx = Math.max(0, Math.min(sc.frames.length-1, idx));
+  activeFrameIdx = idx;
+  const fr   = sc.frames[idx];
+
+  // range slider
+  const r = document.getElementById('tl-range');
+  r.value = idx;
+  r.style.setProperty('--pct', (idx/(sc.frames.length-1)*100)+'%');
+
+  // ticks
+  document.querySelectorAll('.tl-tick').forEach((t,i)=>{
+    t.classList.remove('past','current');
+    if(i < idx) t.classList.add('past');
+    if(i === idx) t.classList.add('current');
+    t.style.opacity = i===idx?'1': i<idx?'0.6':'0.3';
+  });
+
+  // overlays
+  document.getElementById('fo-num').textContent    = idx;
+  document.getElementById('fo-name').textContent   = fr.name;
+  document.getElementById('fo-device').textContent = fr.device;
+  document.getElementById('tl-fn').textContent     = 'F'+idx;
+  document.getElementById('tl-fname').textContent  = fr.name;
+  document.getElementById('tl-device').textContent = fr.device;
+
+  const pill = document.getElementById('osi-pill');
+  pill.textContent  = fr.layer;
+  pill.className    = 'osi-pill '+fr.osiClass;
+
+  updateSVG();
+  renderInspector();
+}
+
+function step(dir){
+  goToFrame(activeFrameIdx + dir);
+}
+
+function onRange(el){
+  el.style.setProperty('--pct',(parseInt(el.value)/(scenario().frames.length-1)*100)+'%');
+  goToFrame(parseInt(el.value));
+}
+
+function jumpToHop(hopId){
+  const sc = scenario();
+  const idx = sc.frames.findIndex(f=>f.activeHop===hopId);
+  if(idx>=0) goToFrame(idx);
+}
+
+// ─────────────────────────────────────────────
+// PLAY / PAUSE
+// ─────────────────────────────────────────────
+function togglePlay(){
+  if(isPlaying) stopPlay(); else startPlay();
+}
+
+function startPlay(){
+  isPlaying = true;
+  document.getElementById('tl-play').textContent = '⏸';
+  document.getElementById('tl-play').classList.add('playing');
+  document.getElementById('tb-play').textContent = '⏸ Pause';
+  tick();
+}
+
+function tick(){
+  const delay = SPEEDS[playSpeed-1];
+  playTimer = setTimeout(()=>{
+    if(activeFrameIdx >= scenario().frames.length-1){
+      stopPlay(); return;
+    }
+    goToFrame(activeFrameIdx+1);
+    if(isPlaying) tick();
+  }, delay);
+}
+
+function stopPlay(){
+  isPlaying = false;
+  clearTimeout(playTimer);
+  document.getElementById('tl-play').textContent = '▶';
+  document.getElementById('tl-play').classList.remove('playing');
+  document.getElementById('tb-play').textContent = '▶ Play';
+}
+
+function replayFrom(){
+  stopPlay();
+  setTimeout(startPlay, 100);
+}
+
+function resetSim(){
+  stopPlay();
+  goToFrame(0);
+}
+
+function setSpeed(v){
+  playSpeed = parseInt(v);
+  const labels = ['½×','1×','1.5×','2×','4×'];
+  document.getElementById('speed-val').textContent = labels[playSpeed-1];
+  const pct = ((playSpeed-1)/4*100)+'%';
+  const el = document.querySelector('.tl-speed');
+  el.style.setProperty('--pct', pct);
+  el.style.background = `linear-gradient(to right,var(--amber) 0%,var(--amber) ${pct},var(--bg5) ${pct},var(--bg5) 100%)`;
+}
+
+// ─────────────────────────────────────────────
+// TICKS
+// ─────────────────────────────────────────────
+function buildTicks(){
+  const sc  = scenario();
+  const el  = document.getElementById('tl-ticks');
+  const colors = {
+    'osi-app':'#3fb950','osi-transport':'#a371f7',
+    'osi-network':'#e3b341','osi-link':'#ff7b72','osi-physical':'#8b949e'
+  };
+  el.innerHTML = sc.frames.map((f,i)=>`
+    <div class="tl-tick" title="F${i}: ${f.name}"
+      style="background:${colors[f.osiClass]||'#545d68'}"
+      onclick="goToFrame(${i})"></div>
+  `).join('');
+}
+
+// ─────────────────────────────────────────────
+// INSPECTOR TABS
+// ─────────────────────────────────────────────
+function setTab(t){
+  activeTab = t;
+  ['packet','log','diff','path'].forEach(x=>{
+    document.getElementById('itab-'+x).classList.toggle('active', x===t);
+  });
+  renderInspector();
+}
+
+function renderInspector(){
+  const body = document.getElementById('inspector-body');
+  if(activeTab==='packet') body.innerHTML = renderPacket();
+  else if(activeTab==='log') body.innerHTML = renderLog();
+  else if(activeTab==='diff') body.innerHTML = renderDiff();
+  else if(activeTab==='path') body.innerHTML = renderPath();
+}
+
+// ── PACKET TAB ──
+function renderPacket(){
+  const fr = frame();
+  const sc = scenario();
+  const p  = fr.packet || {};
+
+  const changed = (key)=>{
+    if(activeFrameIdx===0) return false;
+    const prev = scenario().frames[activeFrameIdx-1].packet||{};
+    return JSON.stringify(prev[key]) !== JSON.stringify(p[key]);
+  };
+
+  const fv = (label, key) => {
+    const val = p[key];
+    if(val===undefined||val===null) return '';
+    const cls = changed(key)?'changed':
+                (activeFrameIdx>0 && !(key in (scenario().frames[activeFrameIdx-1].packet||{})))?'new-val':'';
+    return `<div class="irow">
+      <span class="ikey">${label}</span>
+      <span class="ival ${cls}">${esc(String(val))}</span>
+    </div>`;
+  };
+
+  let h = `<div class="igroup">
+    <div class="igroup-title">
+      <span style="color:${sc.color}">${fr.device}</span>
+      &nbsp;·&nbsp;
+      <span class="osi-pill ${fr.osiClass}" style="position:static;font-size:8px">${fr.layer}</span>
+    </div>`;
+
+  // frame title
+  h += `<div class="irow">
+    <span class="ikey">frame</span>
+    <span class="ival">F${activeFrameIdx} — ${esc(fr.name)}</span>
+  </div>`;
+
+  // dynamic fields
+  const fieldMap = [
+    ['type','type'],['subtype','subtype'],['proto','proto'],
+    ['src_ip','srcIP'],['dst_ip','dstIP'],['ttl','ttl'],
+    ['src_mac','srcMAC'],['dst_mac','dstMAC'],
+    ['src_port','srcPort'],['dst_port','dstPort'],
+    ['seq','seq'],['ack','ack'],['flags','flags'],
+    ['window','windowSize'],['mss','mss'],
+    ['method','method'],['url','url'],['status','status'],
+    ['query','query'],['resolved','resolvedIP'],['query_type','queryType'],
+    ['cache','cacheStatus'],['record','answer'],
+    ['offered_ip','offeredIP'],['lease','leaseTime'],
+    ['gateway','gateway'],['dns','dns'],['subnet','subnetMask'],
+    ['opcode','opcode'],['arp_cache','arpCache'],
+    ['tls_ver','tlsVersion'],['cipher','selectedCipher'],
+    ['cert','certificate'],['cert_status','status'],
+    ['shared_secret','sharedSecret'],
+    ['nat_private','privateIP'],['nat_public','publicIP'],
+    ['nat_port','publicPort'],['nat_type','natType'],
+    ['icmp_type','icmpType'],['identifier','identifier'],
+    ['rtt','roundTrip'],['bgp_ver','bgpVersion'],
+    ['as_path','asPath'],['nlri','nlri'],
+    ['comparison','type'],
+  ];
+
+  const shown = new Set(['type']);
+  fieldMap.forEach(([lbl,key])=>{
+    if(shown.has(key)||p[key]===undefined) return;
+    shown.add(key);
+    h += fv(lbl, key);
+  });
+
+  // remaining fields not in map
+  Object.keys(p).forEach(k=>{
+    if(shown.has(k)) return;
+    const lbl = k.replace(/([A-Z])/g,' $1').toLowerCase().trim();
+    h += fv(lbl, k);
+  });
+
+  h += '</div>';
+  return h;
+}
+
+// ── LOG TAB ──
+function renderLog(){
+  const fr = frame();
+  const sc = scenario();
+  let h = `<div class="igroup">
+    <div class="igroup-title" style="color:${sc.color}">
+      Frame ${activeFrameIdx} — ${esc(fr.name)}
+    </div>
+    <div class="log-wrap">`;
+
+  fr.log.forEach((line,i)=>{
+    if(line===''){
+      h += `<div class="log-line empty">&nbsp;</div>`;
+    } else {
+      const isHL = line.startsWith('  ') || line.includes('→') || line.includes('✓') || line.includes('COMPLETE') || line.includes('ESTABLISHED');
+      h += `<div class="log-line ${isHL?'highlight':''}">${esc(line)}</div>`;
+    }
+  });
+
+  h += `</div></div>`;
+  return h;
+}
+
+// ── DIFF TAB ──
+function renderDiff(){
+  if(activeFrameIdx===0){
+    return `<div class="no-diff">No previous frame to compare. Navigate to Frame 1+.</div>`;
+  }
+  const prev = scenario().frames[activeFrameIdx-1].packet||{};
+  const curr = frame().packet||{};
+  const allKeys = new Set([...Object.keys(prev),...Object.keys(curr)]);
+  const diffs = [];
+  allKeys.forEach(k=>{
+    if(JSON.stringify(prev[k])!==JSON.stringify(curr[k])){
+      diffs.push({key:k, old:prev[k], new:curr[k]});
+    }
+  });
+  if(!diffs.length){
+    return `<div class="no-diff">No packet field changes between F${activeFrameIdx-1} and F${activeFrameIdx}.</div>`;
+  }
+  let h = `<div class="igroup">
+    <div class="igroup-title">F${activeFrameIdx-1} → F${activeFrameIdx} Changes (${diffs.length} fields)</div>`;
+  diffs.forEach(d=>{
+    const lbl = d.key.replace(/([A-Z])/g,' $1').trim();
+    h += `<div class="diff-item">
+      <div class="diff-field">${esc(lbl)}</div>
+      ${d.old!==undefined?`<span class="diff-old">${esc(String(d.old))}</span>`:''}
+      <span class="diff-arrow">↓</span>
+      ${d.new!==undefined?`<span class="diff-new">${esc(String(d.new))}</span>`:'<span style="color:var(--text3);font-size:10px">(removed)</span>'}
+    </div>`;
+  });
+  h += '</div>';
+  return h;
+}
+
+// ── PATH TAB ──
+function renderPath(){
+  const sc = scenario();
+  const fr = frame();
+  let h = `<div class="igroup">
+    <div class="igroup-title">Network Path</div>
+    <div class="hop-path">`;
+  sc.topology.forEach((node,i)=>{
+    const isCurrent = i === fr.activeHop;
+    const isVisited = i < fr.activeHop;
+    const cls = isCurrent?'current':isVisited?'visited':'pending';
+    h += `<div class="hop-path-item ${cls}">
+      <span style="font-size:16px">${node.icon}</span>
+      <div>
+        <div class="hop-path-label">${esc(node.label)}</div>
+        <div class="hop-path-sub">${esc(node.sub)}</div>
+      </div>
+      ${isCurrent?`<span style="margin-left:auto;color:var(--green);font-size:11px;font-family:var(--mono)">← HERE</span>`:''}
+    </div>`;
+    if(i < sc.topology.length-1){
+      h += `<div class="hop-arrow-down">${isVisited||isCurrent?'↓':'·'}</div>`;
+    }
+  });
+  h += `</div></div>
+  <div class="igroup">
+    <div class="igroup-title">Scenario</div>
+    <div style="font-size:12px;color:var(--text2);line-height:1.7;font-family:var(--sans)">${esc(sc.description)}</div>
+  </div>`;
+  return h;
+}
+
+// ─────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────
+function esc(s){
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+// ─────────────────────────────────────────────
+// START
+// ─────────────────────────────────────────────
+boot();
+</script>
+</body>
+</html>
