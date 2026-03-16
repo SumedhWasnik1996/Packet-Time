@@ -1,9 +1,5 @@
 name: Build & Release
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Triggers on a version tag push:
-#   cd packetTimeApp && npm version patch && git push origin main --tags
-# ─────────────────────────────────────────────────────────────────────────────
 on:
   push:
     tags:
@@ -17,19 +13,49 @@ on:
         type: boolean
 
 permissions:
-  contents: write   # required to create GitHub Releases
+  contents: write
 
 env:
   NODE_VERSION: '20'
-  APP_DIR: packetTimeApp   # subfolder where package.json lives
+  APP_DIR: packetTimeApp
 
-# ─────────────────────────────────────────────────────────────────────────────
 jobs:
 
-  # ── Job 1: Quick sanity check before spending money on a Windows runner ───
+  # ── Job 1: Run tests before spending money on a Windows build runner ─────
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.APP_DIR }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write test .env
+        run: |
+          echo "NODE_ENV=test"        > .env
+          echo "OPEN_DEVTOOLS=false" >> .env
+
+      - name: Run tests
+        run: npm run test:ci
+        env:
+          NODE_ENV: test
+
+  # ── Job 2: Validate package.json ─────────────────────────────────────────
   validate:
     name: Validate
     runs-on: ubuntu-latest
+    needs: test
     steps:
       - uses: actions/checkout@v4
 
@@ -48,14 +74,14 @@ jobs:
             if (!p.version) process.exit(1);
           "
 
-  # ── Job 2: Build Windows .exe files ───────────────────────────────────────
+  # ── Job 3: Build Windows .exe ─────────────────────────────────────────────
   build:
     name: Build Windows
     runs-on: windows-latest
     needs: validate
     defaults:
       run:
-        working-directory: ${{ env.APP_DIR }}   # all run steps are inside packetTimeApp/
+        working-directory: ${{ env.APP_DIR }}
 
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +95,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Write a production .env so dotenv picks up NODE_ENV=production
       - name: Write production .env
         shell: bash
         run: |
@@ -81,9 +106,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: List dist output
-        run: dir dist
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -91,7 +113,7 @@ jobs:
           path: ${{ env.APP_DIR }}/dist/*.exe
           retention-days: 14
 
-  # ── Job 3: Publish to GitHub Releases ─────────────────────────────────────
+  # ── Job 4: Publish GitHub Release ────────────────────────────────────────
   release:
     name: Publish Release
     runs-on: ubuntu-latest
@@ -101,14 +123,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download build artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           name: windows-dist
           path: release-files
-
-      - name: List release files
-        run: ls -lh release-files/
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -117,16 +136,13 @@ jobs:
           body: |
             ## PacketTime Debugger ${{ github.ref_name }}
 
-            ### How to install
-            | File | Use |
+            ### Download
+            | File | Description |
             |---|---|
             | `PacketTime-Debugger-Setup-*.exe` | Installer — recommended |
             | `PacketTime-Debugger-*-portable.exe` | Portable, no install needed |
 
             > No Node.js required — everything is bundled.
-
-            ---
-            Full usage guide → [README](https://github.com/SumedhWasnik1996/Packet-Time#readme)
           files: release-files/*.exe
           draft: false
           prerelease: ${{ contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') || contains(github.ref_name, '-rc') }}
